@@ -17,6 +17,7 @@ target_link_libraries(
   PUBLIC
   asyncberk
   cppnet
+  cpptime
   STDEXEC::stdexec
   spdlog::spdlog_header_only
 )

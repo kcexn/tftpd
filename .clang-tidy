@@ -10,7 +10,8 @@ Checks: >
   -readability-braces-around-statements,
   -readability-magic-numbers,
   -readability-implicit-bool-conversion,
-  -readability-avoid-return-with-void-value
+  -readability-avoid-return-with-void-value,
+  -readability-static-accessed-through-instance
 HeaderFilterRegex: '^include/.*'
 CheckOptions:
   misc-trailing-whitespace.AllowEmptyLines: false
