@@ -1,0 +1,98 @@
+name: Tests
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Test and Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          echo 'set man-db/auto-update false' | sudo debconf-communicate >/dev/null
+          sudo dpkg-reconfigure man-db
+          sudo apt-get update
+          sudo apt-get install -y ninja-build gcc g++ ccache cmake python3-all
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('.github/workflows/tests.yml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Install Python dependencies
+        run: pip install gcovr
+
+      - name: Create cache directories
+        run: mkdir -p ~/.ccache ~/.cache/CPM
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles('**/*.cpp', '**/*.hpp', '**/*.h', '**/*.c') }}
+          restore-keys: |
+            ccaches-${{ runner.os }}-
+
+      - name: Cache CMake build directory
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/debug/_deps
+            build/debug/CMakeCache.txt
+            build/debug/CMakeFiles
+          key: cmake-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
+          restore-keys: |
+            cmake-${{ runner.os }}-
+
+      - name: Cache CPM sources.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/CPM
+          key: cpm-${{ runner.os }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=400M
+          ccache --set-config=compression=true
+          ccache --zero-stats
+
+      - name: Configure Cmake with tests and coverage.
+        run: |
+          cmake --preset debug \
+            -DCPM_SOURCE_CACHE='~/.cache/CPM' \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DECHO_BUILD_DOCS=OFF
+
+      - name: Build with tests
+        run: cmake --build --preset debug
+
+      - name: Print ccache stats
+        run: ccache --show-stats
+
+      - name: Run tests
+        run: ctest --preset debug --output-on-failure
+
+      - name: Generate coverage XML
+        if: github.ref == 'refs/heads/main'
+        run: cmake --build --preset debug --target coverage-xml
+
+      - name: Upload coverage to Codacy
+        if: github.ref == 'refs/heads/main'
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 #v1.3.0
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: "./build/debug/coverage/coverage.xml"
