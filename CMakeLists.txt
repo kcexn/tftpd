@@ -18,16 +18,8 @@ CPMAddPackage(
     "STDEXEC_BUILD_TESTING OFF"
 )
 
-# Add AsyncBerkeley as a dependency.
-CPMAddPackage(
-  URI "gh:kcexn/async-berkeley@0.3.1"
-  OPTIONS
-    "IO_BUILD_EXAMPLES OFF"
-    "IO_BUILD_TESTING OFF"
-)
-
 # Add cppnet as a dependency.
-CPMAddPackage("gh:kcexn/cloudbus-net@0.5.1")
+CPMAddPackage("gh:kcexn/cloudbus-net@0.6.1")
 
 # Add spdlog as a dependency.
 CPMAddPackage("gh:gabime/spdlog@1.16.0")

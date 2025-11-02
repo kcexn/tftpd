@@ -24,15 +24,15 @@
 #include <bit>
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 /** @brief TFTP related utilities. */
 namespace tftp {
+// NOLINTBEGIN(performance-enum-size)
 /** @brief The TFTP opcodes. */
-// NOLINTNEXTLINE(performance-enum-size)
 enum struct opcode_enum : std::uint16_t { RRQ = 1, WRQ, DATA, ACK, ERROR };
 /** @brief The TFTP protocol modes. */
 enum struct mode_enum : std::uint8_t { NETASCII = 1, OCTET, MAIL };
 /** @brief The TFTP error codes. */
-// NOLINTNEXTLINE(performance-enum-size)
 enum struct error_enum : std::uint16_t {
   NOT_DEFINED = 0,
   FILE_NOT_FOUND,
@@ -43,6 +43,7 @@ enum struct error_enum : std::uint16_t {
   FILE_ALREADY_EXISTS,
   NO_SUCH_USER
 };
+// NOLINTEND(performance-enum-size)
 
 /** @brief A generic tftp message type. */
 struct tftp_msg {
@@ -69,8 +70,8 @@ struct tftp_ack_msg {
 
 /** @brief Error messages. */
 struct errors {
-  /** @brief Constructs a tftp message from an error number and a string. */
   // NOLINTBEGIN
+  /** @brief Constructs a tftp message from an error number and a string. */
   template <std::size_t N>
   static constexpr auto errmsg(const error_enum error,
                                const char (&str)[N]) noexcept -> decltype(auto)
@@ -82,19 +83,10 @@ struct errors {
     const auto msg_bytes =
         std::bit_cast<std::array<char, sizeof(tftp_error_msg)>>(msg);
 
-    std::array<char, bufsize> buf{};
+    auto buf = std::array<char, bufsize>();
 
-    // Copy header bytes
-    for (std::size_t i = 0; i < sizeof(tftp_error_msg); ++i)
-    {
-      buf[i] = msg_bytes[i];
-    }
-
-    // Copy error message string (including null terminator)
-    for (std::size_t i = 0; i < N; ++i)
-    {
-      buf[sizeof(tftp_error_msg) + i] = str[i];
-    }
+    std::memcpy(buf.data(), msg_bytes.data(), msg_bytes.size());
+    std::memcpy(buf.data() + msg_bytes.size(), str, N);
 
     return buf;
   }
@@ -132,6 +124,14 @@ struct errors {
   {
     using enum error_enum;
     static const auto msg = errmsg(UNKNOWN_TID, "Unknown TID.");
+    return static_cast<const decltype(msg) &>(msg);
+  }
+
+  static auto illegal_operation() noexcept -> decltype(auto)
+  {
+    using enum error_enum;
+    static const auto msg =
+        errmsg(ILLEGAL_OPERATION, "Illegal TFTP Operation.");
     return static_cast<const decltype(msg) &>(msg);
   }
 };

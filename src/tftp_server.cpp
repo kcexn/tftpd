@@ -20,6 +20,7 @@
 #include "tftp/tftp_server.hpp"
 #include "tftp/protocol/tftp_protocol.hpp"
 
+#include <cpptime.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -35,6 +36,9 @@ static constexpr auto ADDR_BUFLEN = 9UL;
 static constexpr auto TFTP_RQ_BUFLEN = 512UL;
 /** @brief Socket address type. */
 template <typename T> using socket_address = ::io::socket::socket_address<T>;
+
+/** @brief Milliseconds type. */
+using milliseconds = std::chrono::milliseconds;
 
 /** @brief Bounds checked implementation of strlen. */
 static inline auto strnlen(const char *str,
@@ -152,6 +156,20 @@ parse_rrq(std::span<const std::byte> buf) -> std::optional<session_state>
   return state;
 }
 
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
+static constexpr auto CLAMP_MIN_DEFAULT = milliseconds(20);
+static constexpr auto CLAMP_MAX_DEFAULT = milliseconds(500);
+static inline auto clamped_exp_weighted_average(
+    milliseconds curr, milliseconds prev, milliseconds min = CLAMP_MIN_DEFAULT,
+    milliseconds max = CLAMP_MAX_DEFAULT) -> milliseconds
+{
+  auto avg = prev * 3 / 4 + curr / 4;
+  avg = std::min(avg, max);
+  avg = std::max(avg, min);
+  return avg;
+}
+// NOLINTEND(bugprone-easily-swappable-parameters)
+
 #ifndef TFTP_SERVER_STATIC_TEST
 auto server::error(async_context &ctx, const socket_dialog &socket,
                    iterator siter, error_enum error) -> void
@@ -180,6 +198,10 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
 
     case UNKNOWN_TID:
       msg.buffers = errors::unknown_tid();
+      break;
+
+    case ILLEGAL_OPERATION:
+      msg.buffers = errors::illegal_operation();
       break;
 
     default:
@@ -239,7 +261,7 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   if (session.state.op != opcode_enum{})
   {
-    spdlog::debug("Duplicate RRQ from {}.", addrstr);
+    spdlog::debug("Duplicate RRQ from {}.", addrstr); // GCOVR_EXCL_LINE
     return reader(ctx, socket, rctx);
   }
 
@@ -272,10 +294,11 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
   // Open the temporary file for sending.
   state.tmp = tmp;
   state.file = std::make_shared<std::fstream>(state.tmp, std::ios::in);
-  if (!state.file->is_open())
+  if (!state.file->is_open()) [[unlikely]]
   {
-    spdlog::error("Error opening {}", state.tmp.c_str());
-    return error(ctx, socket, siter, ACCESS_VIOLATION);
+    spdlog::error("Unable to open the temporary file: {}", // GCOVR_EXCL_LINE
+                  state.tmp.c_str());                      // GCOVR_EXCL_LINE
+    return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
   }
 
   // Start sending the file.
@@ -297,45 +320,85 @@ auto server::send(async_context &ctx, const socket_dialog &socket,
   ctx.scope.spawn(std::move(sendmsg));
 }
 
+// NOLINTBEGIN(cppcoreguidelines-pro-*)
 auto server::send_next(async_context &ctx, const socket_dialog &socket,
                        iterator siter) -> void
 {
   using enum opcode_enum;
+  using enum error_enum;
+  using namespace std::chrono;
+  using namespace CppTime;
+  using clock_type = session_state::clock_type;
 
   auto &[key, session] = *siter;
-  auto &state = session.state;
+  auto &timer = session.state.timer;
+  auto &block_num = session.state.block_num;
+  auto &buffer = session.state.buffer;
+  auto &file = session.state.file;
+  auto &[start_time, avg_rtt] = session.state.statistics;
 
-  state.block_num++;
+  // Reset the timer and prepare the next block.
+  timers_.remove(timer);
+  block_num += 1;
 
-  auto &buffer = state.buffer;
+  // Size the buffer for a complete TFTP DATA message.
   buffer.resize(sizeof(tftp_data_msg) + TFTP_RQ_BUFLEN);
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  // Set the message headers.
   auto *msg = reinterpret_cast<tftp_data_msg *>(buffer.data());
   msg->opcode = DATA;
-  msg->block_num = state.block_num;
+  msg->block_num = block_num;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-  auto len = state.file->readsome(buffer.data() + sizeof(*msg), TFTP_RQ_BUFLEN);
+  // Read the next file chunk into the RRQ buffer.
+  auto len = file->readsome(buffer.data() + sizeof(*msg), TFTP_RQ_BUFLEN);
+  if (file->fail()) [[unlikely]]
+    return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
+
+  // Size the buffer down if we are EOF.
   buffer.resize(sizeof(*msg) + len);
 
   send(ctx, socket, siter);
+
+  // Update statistics and set a new timer.
+  auto now = clock_type::now();
+  avg_rtt = clamped_exp_weighted_average(
+      duration_cast<milliseconds>(now - start_time), avg_rtt);
+
+  start_time = now;
+  timer = timers_.add(
+      2 * avg_rtt,
+      [&, socket, siter](timer_id tid) {
+        send(ctx, socket, siter);
+        ctx.interrupt();
+      },
+      2 * avg_rtt);
 }
+// NOLINTEND(cppcoreguidelines-pro-*)
 
 auto server::cleanup(async_context &ctx, const socket_dialog &socket,
                      iterator siter) -> void
 {
   std::error_code err;
   auto &[key, session] = *siter;
-
-  // Delete the temporary file.
+  auto &timer = session.state.timer;
+  auto &file = session.state.file;
   auto &tmp = session.state.tmp;
-  if (!tmp.empty() && !remove(tmp, err))
+
+  // Delete any associated timers.
+  timers_.remove(timer);
+
+  // Close the file if it is open.
+  file.reset();
+
+  // Delete any temporary files.
+  if (!tmp.empty() && !remove(tmp, err)) [[unlikely]]
   {
-    spdlog::error("Deleting {} failed with error: {}", tmp.c_str(),
-                  err.message());
+    spdlog::warn(                                            // GCOVR_EXCL_LINE
+        "Failed to delete temporary file {} with error: {}", // GCOVR_EXCL_LINE
+        tmp.c_str(), err.message());                         // GCOVR_EXCL_LINE
   }
 
+  // Cleanup the rest of the session.
   sessions_.erase(siter);
 }
 
@@ -357,7 +420,7 @@ auto server::service(async_context &ctx, const socket_dialog &socket,
       return ack(ctx, socket, rctx, buf, siter);
 
     default:
-      return error(ctx, socket, siter, NOT_DEFINED);
+      return error(ctx, socket, siter, ILLEGAL_OPERATION);
   }
 }
 
@@ -371,14 +434,6 @@ auto server::operator()(async_context &ctx, const socket_dialog &socket,
 
   auto [siter, emplaced] = sessions_.try_emplace(*rctx->msg.address);
   auto &[key, session] = *siter;
-  if (!session.buffer.empty() || rctx->msg.flags & MSG_TRUNC)
-  {
-    std::ranges::copy(buf, std::back_inserter(session.buffer));
-    buf = session.buffer;
-  }
-
-  if (rctx->msg.flags & MSG_TRUNC)
-    return reader(ctx, socket, rctx);
 
   if (emplaced)
   {
@@ -391,8 +446,6 @@ auto server::operator()(async_context &ctx, const socket_dialog &socket,
   {
     service(ctx, socket, rctx, buf, siter);
   }
-
-  session.buffer.clear();
 }
 #endif // TFTP_SERVER_STATIC_TEST
 } // namespace tftp

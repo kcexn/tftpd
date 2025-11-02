@@ -80,6 +80,8 @@ public:
 private:
   /** @brief An atomic counter for constructing temporary files. */
   std::atomic<std::uint16_t> count_;
+  /** @brief The TFTP server's timers. */
+  CppTime::Timer timers_;
   /** @brief The TFTP sessions. */
   std::map<socket_address<sockaddr_in6>, session> sessions_;
 
@@ -103,8 +105,8 @@ private:
                    iterator siter) -> void;
 
   /** @brief Prepares and sends the next block of a file to the client. */
-  static auto send_next(async_context &ctx, const socket_dialog &socket,
-                        iterator siter) -> void;
+  auto send_next(async_context &ctx, const socket_dialog &socket,
+                 iterator siter) -> void;
 
   /** @brief Sends an error notice to client and closes the connection. */
   auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
