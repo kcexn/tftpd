@@ -181,7 +181,7 @@ TEST_F(TftpServerTests, TestRRQTimeout)
   using namespace std::chrono;
   using clock_type = steady_clock;
 
-  std::vector<char> test_data(511);
+  std::vector<char> test_data(5 * 512);
 
   {
     auto inf = std::ifstream("/dev/random");
@@ -199,22 +199,36 @@ TEST_F(TftpServerTests, TestRRQTimeout)
   auto recvbuf = std::vector<char>(516);
   auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
                                 .buffers = recvbuf};
-  len = recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
+
+  // ACK five times to prime statistics.
+  for (int i = 0; i < 5; ++i)
+  {
+    len = recvmsg(sock, sockmsg, 0);
+    ASSERT_EQ(
+        std::memcmp(recvbuf.data() + 4, test_data.data() + i * 512, len - 4),
+        0);
+
+    auto *datamsg = reinterpret_cast<tftp_data_msg *>(recvbuf.data());
+    auto *ackmsg = reinterpret_cast<tftp_ack_msg *>(ack.data());
+    ackmsg->block_num = datamsg->block_num;
+
+    sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack}, 0);
+  }
+
   auto start = clock_type::now();
 
+  // Timeout after 6 attempts (1 + 5 retries).
+  for (int i = 0; i < 6; i++)
+  {
+    len = recvmsg(sock, sockmsg, 0);
+  }
+
   len = recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
+  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::timed_out().data(), len), 0);
 
   auto timeout = duration_cast<milliseconds>(clock_type::now() - start);
-  EXPECT_GE(timeout, 40ms);
-  EXPECT_LE(timeout, 1100ms);
-
-  auto *datamsg = reinterpret_cast<tftp_data_msg *>(recvbuf.data());
-  auto *ackmsg = reinterpret_cast<tftp_ack_msg *>(ack.data());
-  ackmsg->block_num = datamsg->block_num;
-
-  sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack}, 0);
+  EXPECT_GE(timeout, 240ms);
+  EXPECT_LE(timeout, 1500ms);
 
   remove(test_file);
 }

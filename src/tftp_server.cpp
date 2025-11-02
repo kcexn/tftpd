@@ -204,6 +204,10 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
       msg.buffers = errors::illegal_operation();
       break;
 
+    case TIMED_OUT:
+      msg.buffers = errors::timed_out();
+      break;
+
     default:
       break;
   }
@@ -367,8 +371,16 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   start_time = now;
   timer = timers_.add(
       2 * avg_rtt,
-      [&, socket, siter](timer_id tid) {
-        send(ctx, socket, siter);
+      [&, socket, siter, retries = 0](timer_id tid) mutable {
+        constexpr auto MAX_RETRIES = 5;
+        if (retries++ >= MAX_RETRIES)
+        {
+          error(ctx, socket, siter, TIMED_OUT);
+        }
+        else
+        {
+          send(ctx, socket, siter);
+        }
         ctx.interrupt();
       },
       2 * avg_rtt);

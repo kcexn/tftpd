@@ -41,7 +41,10 @@ enum struct error_enum : std::uint16_t {
   ILLEGAL_OPERATION,
   UNKNOWN_TID,
   FILE_ALREADY_EXISTS,
-  NO_SUCH_USER
+  NO_SUCH_USER,
+  // All errors below NO_SUCH_USER are NOT_DEFINED errors with
+  // differing messages.
+  TIMED_OUT
 };
 // NOLINTEND(performance-enum-size)
 
@@ -96,6 +99,13 @@ struct errors {
   {
     using enum error_enum;
     static const auto msg = errmsg(NOT_DEFINED, "Not Implemented.");
+    return static_cast<const decltype(msg) &>(msg);
+  }
+
+  static auto timed_out() noexcept -> decltype(auto)
+  {
+    using enum error_enum;
+    static const auto msg = errmsg(NOT_DEFINED, "Timed Out.");
     return static_cast<const decltype(msg) &>(msg);
   }
 
