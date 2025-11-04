@@ -80,8 +80,6 @@ public:
 private:
   /** @brief An atomic counter for constructing temporary files. */
   std::atomic<std::uint16_t> count_;
-  /** @brief The TFTP server's timers. */
-  CppTime::Timer timers_;
   /** @brief The TFTP sessions. */
   std::map<socket_address<sockaddr_in6>, session> sessions_;
 

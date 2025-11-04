@@ -20,7 +20,7 @@
 #include "tftp/tftp_server.hpp"
 #include "tftp/protocol/tftp_protocol.hpp"
 
-#include <cpptime.h>
+#include <net/timers/timers.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -260,9 +260,10 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 {
   using enum error_enum;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
-  auto addrstr = to_str(addrbuf, *rctx->msg.address);
 
   auto &[key, session] = *siter;
+  auto addrstr = to_str(addrbuf, key);
+
   if (session.state.op != opcode_enum{})
   {
     spdlog::debug("Duplicate RRQ from {}.", addrstr); // GCOVR_EXCL_LINE
@@ -331,7 +332,6 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   using enum opcode_enum;
   using enum error_enum;
   using namespace std::chrono;
-  using namespace CppTime;
   using clock_type = session_state::clock_type;
 
   auto &[key, session] = *siter;
@@ -342,7 +342,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   auto &[start_time, avg_rtt] = session.state.statistics;
 
   // Reset the timer and prepare the next block.
-  timers_.remove(timer);
+  ctx.timers.remove(timer);
   block_num += 1;
 
   // Size the buffer for a complete TFTP DATA message.
@@ -369,9 +369,9 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
       duration_cast<milliseconds>(now - start_time), avg_rtt);
 
   start_time = now;
-  timer = timers_.add(
-      2 * avg_rtt,
-      [&, socket, siter, retries = 0](timer_id tid) mutable {
+  timer = ctx.timers.add(
+      milliseconds(2 * avg_rtt),
+      [&, socket, siter, retries = 0](net::timers::timer_id tid) mutable {
         constexpr auto MAX_RETRIES = 5;
         if (retries++ >= MAX_RETRIES)
         {
@@ -383,7 +383,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
         }
         ctx.interrupt();
       },
-      2 * avg_rtt);
+      milliseconds(2 * avg_rtt));
 }
 // NOLINTEND(cppcoreguidelines-pro-*)
 
@@ -397,7 +397,7 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   auto &tmp = session.state.tmp;
 
   // Delete any associated timers.
-  timers_.remove(timer);
+  ctx.timers.remove(timer);
 
   // Close the file if it is open.
   file.reset();

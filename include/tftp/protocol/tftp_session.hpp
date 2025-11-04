@@ -22,7 +22,7 @@
 #define TFTP_SESSION_HPP
 #include "tftp_protocol.hpp"
 
-#include <cpptime.h>
+#include <net/timers/timers.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -52,7 +52,7 @@ struct session_state {
     std::chrono::milliseconds avg_rtt;
   } statistics;
   /** @brief A timer id associated to the TFTP session. */
-  CppTime::timer_id timer;
+  net::timers::timer_id timer{net::timers::INVALID_TIMER};
   /** @brief The current protocol block number. */
   std::uint16_t block_num = 0;
   /** @brief The file operation. */

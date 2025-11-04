@@ -19,13 +19,10 @@ CPMAddPackage(
 )
 
 # Add cppnet as a dependency.
-CPMAddPackage("gh:kcexn/cloudbus-net@0.6.1")
+CPMAddPackage("gh:kcexn/cloudbus-net@0.7.2")
 
 # Add spdlog as a dependency.
 CPMAddPackage("gh:gabime/spdlog@1.16.0")
-
-# Add cpptime as a dependency.
-CPMAddPackage("gh:kcexn/cpptime#develop")
 
 # Enable testing by default if this is a top-level project or
 # in submodules if the project has explicitly set BUILD_TESTING

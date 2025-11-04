@@ -61,11 +61,8 @@ protected:
     ackmsg->block_num = 0;
 
     server_ = std::make_unique<tftp_server>();
-    server_->start(mtx, cvar, addr_v4);
-    {
-      auto lock = std::unique_lock{mtx};
-      cvar.wait(lock, [&] { return server_->state != PENDING; });
-    }
+    server_->start(addr_v4);
+    server_->state.wait(PENDING);
     ASSERT_EQ(server_->state, STARTED);
   }
 
@@ -74,10 +71,7 @@ protected:
     using enum async_context::context_states;
 
     server_->signal(server_->terminate);
-    {
-      auto lock = std::unique_lock{mtx};
-      cvar.wait(lock, [&] { return server_->state != STARTED; });
-    }
+    server_->state.wait(STARTED);
     ASSERT_EQ(server_->state, STOPPED);
     server_.reset();
   }
