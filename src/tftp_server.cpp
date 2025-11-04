@@ -157,7 +157,7 @@ parse_rrq(std::span<const std::byte> buf) -> std::optional<session_state>
 }
 
 // NOLINTBEGIN(bugprone-easily-swappable-parameters)
-static constexpr auto CLAMP_MIN_DEFAULT = milliseconds(20);
+static constexpr auto CLAMP_MIN_DEFAULT = milliseconds(5);
 static constexpr auto CLAMP_MAX_DEFAULT = milliseconds(500);
 static inline auto clamped_exp_weighted_average(
     milliseconds curr, milliseconds prev, milliseconds min = CLAMP_MIN_DEFAULT,
@@ -315,10 +315,13 @@ auto server::send(async_context &ctx, const socket_dialog &socket,
 {
   using namespace stdexec;
   auto &[key, session] = *siter;
+  constexpr auto DATA_BUFLEN = sizeof(tftp_data_msg) + TFTP_RQ_BUFLEN;
+
   auto &buffer = session.state.buffer;
+  auto span = std::span(buffer.data(), std::min(buffer.size(), DATA_BUFLEN));
 
   sender auto sendmsg =
-      io::sendmsg(socket, socket_message{.address = {key}, .buffers = buffer},
+      io::sendmsg(socket, socket_message{.address = {key}, .buffers = span},
                   0) |
       then([](auto &&) {}) | upon_error([](auto &&) {});
 
@@ -330,12 +333,14 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
                        iterator siter) -> void
 {
   using enum opcode_enum;
+  using enum mode_enum;
   using enum error_enum;
   using namespace std::chrono;
   using clock_type = session_state::clock_type;
 
   auto &[key, session] = *siter;
   auto &timer = session.state.timer;
+  auto &mode = session.state.mode;
   auto &block_num = session.state.block_num;
   auto &buffer = session.state.buffer;
   auto &file = session.state.file;
@@ -346,20 +351,52 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   block_num += 1;
 
   // Size the buffer for a complete TFTP DATA message.
-  buffer.resize(sizeof(tftp_data_msg) + TFTP_RQ_BUFLEN);
+  constexpr auto DATA_BUFLEN = sizeof(tftp_data_msg) + TFTP_RQ_BUFLEN;
+  buffer.reserve(DATA_BUFLEN + TFTP_RQ_BUFLEN);
+  if (buffer.size() < sizeof(tftp_data_msg))
+    buffer.resize(sizeof(tftp_data_msg));
 
   // Set the message headers.
   auto *msg = reinterpret_cast<tftp_data_msg *>(buffer.data());
   msg->opcode = DATA;
   msg->block_num = block_num;
 
+  auto last = buffer.begin() + sizeof(tftp_data_msg);
+
+  if (buffer.size() > DATA_BUFLEN)
+    last = std::copy(buffer.begin() + DATA_BUFLEN, buffer.end(),
+                     buffer.begin() + sizeof(tftp_data_msg));
+
+  buffer.erase(last, buffer.end());
+
   // Read the next file chunk into the RRQ buffer.
-  auto len = file->readsome(buffer.data() + sizeof(*msg), TFTP_RQ_BUFLEN);
+  auto tmp = std::array<char, TFTP_RQ_BUFLEN>();
+  auto len = file->readsome(tmp.data(), tmp.size());
   if (file->fail()) [[unlikely]]
     return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
 
-  // Size the buffer down if we are EOF.
-  buffer.resize(sizeof(*msg) + len);
+  auto *end = tmp.begin() + len;
+  for (auto *it = tmp.begin(); it != end; ++it)
+  {
+    if (mode == NETASCII && *it == '\n')
+    {
+      if (buffer.back() == '\0')
+      {
+        buffer.pop_back();
+      }
+      else
+      {
+        buffer.push_back('\r');
+      }
+    }
+
+    buffer.push_back(*it);
+
+    if (mode == NETASCII && *it == '\r')
+    {
+      buffer.push_back('\0');
+    }
+  }
 
   send(ctx, socket, siter);
 
@@ -370,7 +407,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   start_time = now;
   timer = ctx.timers.add(
-      milliseconds(2 * avg_rtt),
+      2 * avg_rtt,
       [&, socket, siter, retries = 0](net::timers::timer_id tid) mutable {
         constexpr auto MAX_RETRIES = 5;
         if (retries++ >= MAX_RETRIES)
@@ -378,7 +415,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
         send(ctx, socket, siter);
       },
-      milliseconds(2 * avg_rtt));
+      2 * avg_rtt);
 }
 // NOLINTEND(cppcoreguidelines-pro-*)
 
