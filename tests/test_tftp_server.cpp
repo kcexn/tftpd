@@ -52,7 +52,7 @@ protected:
     std::ranges::copy(std::string_view(test_file.c_str()),
                       std::back_inserter(rrq));
     rrq.push_back('\0');
-    std::ranges::copy(std::string_view("netascii"), std::back_inserter(rrq));
+    std::ranges::copy(std::string_view("octet"), std::back_inserter(rrq));
     rrq.push_back('\0');
 
     ack.resize(sizeof(tftp_ack_msg));
