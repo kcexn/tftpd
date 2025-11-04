@@ -374,14 +374,9 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
       [&, socket, siter, retries = 0](net::timers::timer_id tid) mutable {
         constexpr auto MAX_RETRIES = 5;
         if (retries++ >= MAX_RETRIES)
-        {
-          error(ctx, socket, siter, TIMED_OUT);
-        }
-        else
-        {
-          send(ctx, socket, siter);
-        }
-        ctx.interrupt();
+          return error(ctx, socket, siter, TIMED_OUT);
+
+        send(ctx, socket, siter);
       },
       milliseconds(2 * avg_rtt));
 }
