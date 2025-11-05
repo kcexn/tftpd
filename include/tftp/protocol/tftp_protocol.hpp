@@ -20,76 +20,96 @@
 #pragma once
 #ifndef TFTP_PROTOCOL_HPP
 #define TFTP_PROTOCOL_HPP
+#include "tftp/detail/endianness.hpp"
+
 #include <array>
-#include <bit>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
 /** @brief TFTP related utilities. */
 namespace tftp {
 // NOLINTBEGIN(performance-enum-size)
-/** @brief The TFTP opcodes. */
-enum struct opcode_enum : std::uint16_t { RRQ = 1, WRQ, DATA, ACK, ERROR };
-/** @brief The TFTP protocol modes. */
-enum struct mode_enum : std::uint8_t { NETASCII = 1, OCTET, MAIL };
-/** @brief The TFTP error codes. */
-enum struct error_enum : std::uint16_t {
-  NOT_DEFINED = 0,
-  FILE_NOT_FOUND,
-  ACCESS_VIOLATION,
-  DISK_FULL,
-  ILLEGAL_OPERATION,
-  UNKNOWN_TID,
-  FILE_ALREADY_EXISTS,
-  NO_SUCH_USER,
-  // All errors below NO_SUCH_USER are NOT_DEFINED errors with
-  // differing messages.
-  TIMED_OUT
+/** @brief A struct to contain TFTP message marshalling logic. */
+struct messages {
+  /** @brief Protocol defined operations. */
+  enum opcode_t : std::uint16_t { RRQ = 1, WRQ, DATA, ACK, ERROR };
+  /** @brief Protocol defined modes. */
+  enum mode_t : std::uint8_t { NETASCII = 1, OCTET, MAIL };
+  /** @brief Protocol errors. */
+  enum error_t : std::uint16_t {
+    NOT_DEFINED = 0,
+    FILE_NOT_FOUND,
+    ACCESS_VIOLATION,
+    DISK_FULL,
+    ILLEGAL_OPERATION,
+    UNKNOWN_TID,
+    FILE_ALREADY_EXISTS,
+    NO_SUCH_USER,
+    // Errors below this point are all ALIASES to NOT_DEFINED.
+    TIMED_OUT
+  };
+
+  /** @brief Read and write request messages. */
+  struct request {
+    uint16_t opc;
+    const char *filename;
+    uint16_t mode;
+  };
+
+  /** @brief error message. */
+  struct error {
+    uint16_t opc;
+    uint16_t error;
+  };
+
+  /** @brief Data/ack message. */
+  struct data {
+    uint16_t opc;
+    uint16_t block_num;
+  };
+  /** @brief Ack message. */
+  using ack = data;
+
+  /** @brief The maximum data size of a message. */
+  static constexpr auto DATALEN = 512UL;
+  /** @brief The maximum frame size for a data message. */
+  static constexpr auto DATAMSG_MAXLEN = sizeof(data) + DATALEN;
 };
 // NOLINTEND(performance-enum-size)
-
-/** @brief A generic tftp message type. */
-struct tftp_msg {
-  opcode_enum opcode = {};
-};
-
-/** @brief A tftp error message. */
-struct tftp_error_msg {
-  opcode_enum opcode = {};
-  error_enum error = {};
-};
-
-/** @brief A tftp data message. */
-struct tftp_data_msg {
-  opcode_enum opcode = {};
-  std::uint16_t block_num = 0;
-};
-
-/** @brief A tftp ack message. */
-struct tftp_ack_msg {
-  opcode_enum opcode = {};
-  std::uint16_t block_num = 0;
-};
 
 /** @brief Error messages. */
 struct errors {
   // NOLINTBEGIN
-  /** @brief Constructs a tftp message from an error number and a string. */
+  /**
+   * @brief Constructs a tftp message from an error number and a string.
+   * @tparam N The length of the string (including the null byte).
+   * @param error The error code.
+   * @param str The error message.
+   * @returns A byte array containing the error message with all fields in
+   * network byte order.
+   */
   template <std::size_t N>
-  static constexpr auto errmsg(const error_enum error,
-                               const char (&str)[N]) noexcept -> decltype(auto)
+  static constexpr auto msg(const messages::error_t error,
+                            const char (&str)[N]) noexcept
   {
-    using enum opcode_enum;
+    using detail::htons;
+    using enum messages::opcode_t;
 
-    constexpr auto bufsize = sizeof(tftp_error_msg) + N;
-    const auto msg = tftp_error_msg{.opcode = ERROR, .error = error};
-    const auto msg_bytes =
-        std::bit_cast<std::array<char, sizeof(tftp_error_msg)>>(msg);
+    constexpr auto bufsize = sizeof(messages::error) + N;
+    const auto msg =
+        messages::error{.opc = htons(ERROR), .error = htons(error)};
+    const auto bytes = std::bit_cast<std::array<char, sizeof(msg)>>(msg);
 
     auto buf = std::array<char, bufsize>();
-
-    std::memcpy(buf.data(), msg_bytes.data(), msg_bytes.size());
-    std::memcpy(buf.data() + msg_bytes.size(), str, N);
+    auto it = buf.begin();
+    for (auto ch : bytes)
+    {
+      *it++ = ch;
+    }
+    for (auto ch : str)
+    {
+      *it++ = ch;
+    }
 
     return buf;
   }
@@ -97,52 +117,51 @@ struct errors {
 
   static auto not_implemented() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(NOT_DEFINED, "Not Implemented.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(NOT_DEFINED, "Not implemented.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto timed_out() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(NOT_DEFINED, "Timed Out.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(NOT_DEFINED, "Timed Out");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto access_violation() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(ACCESS_VIOLATION, "Access violation.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(ACCESS_VIOLATION, "Access violation.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto file_not_found() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(FILE_NOT_FOUND, "File not found.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(FILE_NOT_FOUND, "File not found.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto disk_full() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(DISK_FULL, "No disk space available.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(DISK_FULL, "No space available.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto unknown_tid() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg = errmsg(UNKNOWN_TID, "Unknown TID.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(UNKNOWN_TID, "Unknown TID.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 
   static auto illegal_operation() noexcept -> decltype(auto)
   {
-    using enum error_enum;
-    static const auto msg =
-        errmsg(ILLEGAL_OPERATION, "Illegal TFTP Operation.");
-    return static_cast<const decltype(msg) &>(msg);
+    using enum messages::error_t;
+    static constexpr auto buf = msg(ILLEGAL_OPERATION, "Illegal operation.");
+    return static_cast<const decltype(buf) &>(buf);
   }
 };
 

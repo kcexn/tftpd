@@ -4,6 +4,8 @@ Checks: >
   cert-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   modernize-*,
   performance-*,
   readability-*,

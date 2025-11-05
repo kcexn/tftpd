@@ -20,7 +20,6 @@
 #pragma once
 #ifndef TFTP_SERVER_HPP
 #define TFTP_SERVER_HPP
-#include "protocol/tftp_protocol.hpp"
 #include "protocol/tftp_session.hpp"
 
 #include <net/service/async_udp_service.hpp>
@@ -42,9 +41,9 @@ public:
   /** @brief The socket message type. */
   using socket_message = io::socket::socket_message<sockaddr_in6>;
   /** @brief Sessions map. */
-  using sessions_map = std::map<socket_address<sockaddr_in6>, session>;
+  using sessions_t = std::map<socket_address<sockaddr_in6>, session>;
   /** @brief Map iterator. */
-  using iterator = sessions_map::iterator;
+  using iterator = sessions_t::iterator;
 
   /**
    * @brief Constructs a TFTP server on the socket address.
@@ -81,7 +80,7 @@ private:
   /** @brief An atomic counter for constructing temporary files. */
   std::atomic<std::uint16_t> count_;
   /** @brief The TFTP sessions. */
-  std::map<socket_address<sockaddr_in6>, session> sessions_;
+  sessions_t sessions_;
 
   // Application Logic.
   /** @brief Services a read request. */
@@ -92,7 +91,7 @@ private:
   /** @brief Services an ack. */
   auto ack(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
-           std::span<const std::byte> buf, iterator siter) -> void;
+           std::span<const std::byte> msg, iterator siter) -> void;
 
   /** @brief Cleans-up the session from the server. */
   auto cleanup(async_context &ctx, const socket_dialog &socket,
@@ -108,7 +107,7 @@ private:
 
   /** @brief Sends an error notice to client and closes the connection. */
   auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
-             error_enum error) -> void;
+             messages::error_t error) -> void;
 };
 } // namespace tftp
 #endif // TFTP_SERVER_HPP

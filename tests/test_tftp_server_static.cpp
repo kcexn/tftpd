@@ -24,6 +24,8 @@
 #include <array>
 
 using namespace tftp;
+using enum messages::mode_t;
+using enum messages::opcode_t;
 
 TEST(TftpServerStaticTests, TestToStr)
 {
@@ -52,51 +54,51 @@ TEST(TftpServerStaticTests, TestToStr)
 }
 
 class TftpServerStaticModeTest
-    : public ::testing::TestWithParam<std::pair<std::string_view, mode_enum>> {
-};
+    : public ::testing::TestWithParam<
+          std::pair<std::string_view, std::uint8_t>> {};
 
 TEST_P(TftpServerStaticModeTest, TestToMode)
 {
   auto [str, mode] = GetParam();
-  EXPECT_EQ(to_mode(str), mode);
+  ASSERT_EQ(to_mode(str), mode);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    TftpServerStaticTests, TftpServerStaticModeTest,
-    ::testing::Values(std::make_pair("netascii", mode_enum::NETASCII),
-                      std::make_pair("mail", mode_enum::MAIL),
-                      std::make_pair("octet", mode_enum::OCTET),
-                      std::make_pair("unknown", mode_enum{})));
+INSTANTIATE_TEST_SUITE_P(TftpServerStaticTests, TftpServerStaticModeTest,
+                         ::testing::Values(std::make_pair("netascii", messages::mode_t::NETASCII),
+                                           std::make_pair("mail", messages::mode_t::MAIL),
+                                           std::make_pair("octet", messages::mode_t::OCTET),
+                                           std::make_pair("unknown", messages::mode_t{0})));
 
 TEST(TftpServerStaticTests, TestParseRRQ)
 {
-  using enum opcode_enum;
+  auto request = std::vector<char>();
 
-  auto rrq = std::vector<char>(sizeof(tftp_msg));
-  auto *opcode = reinterpret_cast<opcode_enum *>(rrq.data());
-  *opcode = RRQ;
+  auto opc = htons(RRQ);
+
+  request.resize(sizeof(opc));
+  std::memcpy(request.data(), &opc, sizeof(opc));
 
   auto path = std::string("test.txt");
-  rrq.insert(rrq.end(), path.begin(), path.end());
+  request.insert(request.end(), path.begin(), path.end());
 
-  ASSERT_FALSE(parse_rrq(
-      std::span{reinterpret_cast<std::byte *>(rrq.data()), rrq.size()}));
+  ASSERT_FALSE(parse_request(std::span{
+      reinterpret_cast<std::byte *>(request.data()), request.size()}));
 
-  rrq.push_back('\0');
+  request.push_back('\0');
   auto mode = std::string("netascii");
-  rrq.insert(rrq.end(), mode.begin(), mode.end());
+  request.insert(request.end(), mode.begin(), mode.end());
 
-  ASSERT_FALSE(parse_rrq(
-      std::span{reinterpret_cast<std::byte *>(rrq.data()), rrq.size()}));
+  ASSERT_FALSE(parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
 
-  rrq.back() = '\0';
-  ASSERT_FALSE(parse_rrq(
-      std::span{reinterpret_cast<std::byte *>(rrq.data()), rrq.size()}));
+  request.back() = '\0';
+  ASSERT_FALSE(parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
 
-  rrq.back() = 'i';
-  rrq.push_back('\0');
-  ASSERT_TRUE(parse_rrq(
-      std::span{reinterpret_cast<std::byte *>(rrq.data()), rrq.size()}));
+  request.back() = 'i';
+  request.push_back('\0');
+  ASSERT_TRUE(parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
 }
 
 #undef TFTP_SERVER_STATIC_TEST

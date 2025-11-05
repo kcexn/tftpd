@@ -37,8 +37,9 @@ protected:
 
   auto SetUp() noexcept -> void
   {
-    using enum opcode_enum;
+    using enum messages::opcode_t;
     using enum async_context::context_states;
+    using tftp::detail::htons;
 
     addr_v4->sin_family = AF_INET;
     addr_v4->sin_port = htons(8080);
@@ -46,19 +47,20 @@ protected:
     test_file = (std::filesystem::temp_directory_path() / "test.")
                     .concat(std::format("{:05d}", test_counter++));
 
-    rrq.resize(sizeof(opcode_enum));
-    auto *rrqmsg = reinterpret_cast<tftp_msg *>(rrq.data());
-    rrqmsg->opcode = RRQ;
-    std::ranges::copy(std::string_view(test_file.c_str()),
-                      std::back_inserter(rrq));
+    rrq.resize(sizeof(messages::opcode_t));
+    auto opc = htons(RRQ);
+    std::memcpy(rrq.data(), &opc, sizeof(opc));
+
+    std::ranges::copy(std::string_view(test_file.c_str()), std::back_inserter(rrq));
     rrq.push_back('\0');
+
     std::ranges::copy(std::string_view("octet"), std::back_inserter(rrq));
     rrq.push_back('\0');
 
-    ack.resize(sizeof(tftp_ack_msg));
-    auto *ackmsg = reinterpret_cast<tftp_ack_msg *>(ack.data());
-    ackmsg->opcode = ACK;
-    ackmsg->block_num = 0;
+    ack.resize(sizeof(messages::ack));
+    auto *ackmsg = reinterpret_cast<messages::ack*>(ack.data());
+    ackmsg->opc = htons(ACK);
+    ackmsg->block_num = htons(0);
 
     server_ = std::make_unique<tftp_server>();
     server_->start(addr_v4);
@@ -202,8 +204,8 @@ TEST_F(TftpServerTests, TestRRQTimeout)
         std::memcmp(recvbuf.data() + 4, test_data.data() + i * 512, len - 4),
         0);
 
-    auto *datamsg = reinterpret_cast<tftp_data_msg *>(recvbuf.data());
-    auto *ackmsg = reinterpret_cast<tftp_ack_msg *>(ack.data());
+    auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
+    auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
     ackmsg->block_num = datamsg->block_num;
 
     sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack}, 0);
@@ -236,8 +238,8 @@ TEST_F(TftpServerTests, TestIllegalOp)
   addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
 
   ack.resize(16 * 1024);
-  auto *msg = reinterpret_cast<tftp_msg *>(ack.data());
-  msg->opcode = opcode_enum{};
+  auto *msg = reinterpret_cast<messages::ack *>(ack.data());
+  msg->opc = htons(0);
 
   auto len = io::sendmsg(
       sock, socket_message{.address = {addr_v4}, .buffers = ack}, 0);
@@ -282,8 +284,8 @@ TEST_P(TftpServerTests, TestRRQ)
         std::memcmp(recvbuf.data() + 4, test_data.data() + i * 512, len - 4),
         0);
 
-    auto *datamsg = reinterpret_cast<tftp_data_msg *>(recvbuf.data());
-    auto *ackmsg = reinterpret_cast<tftp_ack_msg *>(ack.data());
+    auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
+    auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
     ackmsg->block_num = datamsg->block_num;
 
     sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack}, 0);

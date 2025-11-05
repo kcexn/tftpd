@@ -31,40 +31,47 @@
 /** @brief TFTP related utilities. */
 namespace tftp {
 
-/** @brief TFTP protocol state. */
-struct session_state {
-  /** @brief Clock type. */
-  using clock_type = std::chrono::steady_clock;
-
-  /** @brief The requested filepath. */
-  std::filesystem::path target;
-  /** @brief The temporary filepath. */
-  std::filesystem::path tmp;
-  /** @brief A write buffer. */
-  std::vector<char> buffer;
-  /** @brief The fstream associated with the operation. */
-  std::shared_ptr<std::fstream> file;
-  /** @brief RTT statistics. */
-  struct {
-    /** @brief Used to mark the start time of an interval. */
-    clock_type::time_point start_time;
-    /** @brief The aggregate avg round trip time. */
-    std::chrono::milliseconds avg_rtt;
-  } statistics;
-  /** @brief A timer id associated to the TFTP session. */
-  net::timers::timer_id timer{net::timers::INVALID_TIMER};
-  /** @brief The current protocol block number. */
-  std::uint16_t block_num = 0;
-  /** @brief The file operation. */
-  opcode_enum op{};
-  /** @brief The operating mode. */
-  mode_enum mode{};
-};
-
-/** @brief A TFTP session consists of the protocol state and a buffer. */
+/** @brief A TFTP session holds all of the session state. */
 struct session {
+  /** @brief The session clock. */
+  using clock = std::chrono::steady_clock;
+  /** @brief The session timestamp. */
+  using timestamp = clock::time_point;
+  /** @brief the session duration. */
+  using duration = std::chrono::milliseconds;
+  /** @brief The session timer. */
+  using timer_id = net::timers::timer_id;
+  /** @brief The invalid timer value. */
+  static constexpr auto INVALID_TIMER = net::timers::INVALID_TIMER;
+
   /** @brief The session state. */
-  session_state state;
+  struct state_t {
+    /** @brief The requested filepath. */
+    std::filesystem::path target;
+    /** @brief The temporary filepath. */
+    std::filesystem::path tmp;
+    /** @brief A write buffer. */
+    std::vector<char> buffer;
+    /** @brief The fstream associated with the operation. */
+    std::shared_ptr<std::fstream> file;
+    /** @brief RTT statistics. */
+    struct {
+      /** @brief Used to mark the start time of an interval. */
+      timestamp start_time;
+      /** @brief The aggregate avg round trip time. */
+      duration avg_rtt;
+    } statistics;
+    /** @brief A timer id associated to the TFTP session. */
+    timer_id timer{INVALID_TIMER};
+    /** @brief The current protocol block number. */
+    std::uint16_t block_num = 0;
+    /** @brief The file operation. */
+    messages::opcode_t opc;
+    /** @brief The operating mode. */
+    messages::mode_t mode;
+  };
+
+  state_t state;
 };
 
 } // namespace tftp
