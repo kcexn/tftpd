@@ -63,19 +63,26 @@ TEST_P(TftpServerStaticModeTest, TestToMode)
   ASSERT_EQ(to_mode(str), mode);
 }
 
-INSTANTIATE_TEST_SUITE_P(TftpServerStaticTests, TftpServerStaticModeTest,
-                         ::testing::Values(std::make_pair("netascii", messages::mode_t::NETASCII),
-                                           std::make_pair("mail", messages::mode_t::MAIL),
-                                           std::make_pair("octet", messages::mode_t::OCTET),
-                                           std::make_pair("unknown", messages::mode_t{0})));
+INSTANTIATE_TEST_SUITE_P(
+    TftpServerStaticTests, TftpServerStaticModeTest,
+    ::testing::Values(std::make_pair("netascii", messages::mode_t::NETASCII),
+                      std::make_pair("mail", messages::mode_t::MAIL),
+                      std::make_pair("octet", messages::mode_t::OCTET),
+                      std::make_pair("unknown", messages::mode_t{0})));
 
 TEST(TftpServerStaticTests, TestParseRRQ)
 {
   auto request = std::vector<char>();
 
-  auto opc = htons(RRQ);
+  auto opc = htons(ACK);
 
   request.resize(sizeof(opc));
+  std::memcpy(request.data(), &opc, sizeof(opc));
+
+  ASSERT_FALSE(parse_request(std::span{
+      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+
+  opc = htons(RRQ);
   std::memcpy(request.data(), &opc, sizeof(opc));
 
   auto path = std::string("test.txt");
@@ -88,17 +95,17 @@ TEST(TftpServerStaticTests, TestParseRRQ)
   auto mode = std::string("netascii");
   request.insert(request.end(), mode.begin(), mode.end());
 
-  ASSERT_FALSE(parse_request(
-      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  ASSERT_FALSE(parse_request(std::span{
+      reinterpret_cast<std::byte *>(request.data()), request.size()}));
 
   request.back() = '\0';
-  ASSERT_FALSE(parse_request(
-      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  ASSERT_FALSE(parse_request(std::span{
+      reinterpret_cast<std::byte *>(request.data()), request.size()}));
 
   request.back() = 'i';
   request.push_back('\0');
-  ASSERT_TRUE(parse_request(
-      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  ASSERT_TRUE(parse_request(std::span{
+      reinterpret_cast<std::byte *>(request.data()), request.size()}));
 }
 
 #undef TFTP_SERVER_STATIC_TEST

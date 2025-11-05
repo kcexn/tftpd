@@ -20,8 +20,6 @@
 #pragma once
 #ifndef TFTP_SESSION_HPP
 #define TFTP_SESSION_HPP
-#include "tftp_protocol.hpp"
-
 #include <net/timers/timers.hpp>
 
 #include <cstdint>
@@ -41,6 +39,8 @@ struct session {
   using duration = std::chrono::milliseconds;
   /** @brief The session timer. */
   using timer_id = net::timers::timer_id;
+  /** @brief The socket address type. */
+  template <typename T> using socket_address = io::socket::socket_address<T>;
   /** @brief The invalid timer value. */
   static constexpr auto INVALID_TIMER = net::timers::INVALID_TIMER;
 
@@ -66,9 +66,9 @@ struct session {
     /** @brief The current protocol block number. */
     std::uint16_t block_num = 0;
     /** @brief The file operation. */
-    messages::opcode_t opc;
+    std::uint16_t opc = 0;
     /** @brief The operating mode. */
-    messages::mode_t mode;
+    std::uint8_t mode = 0;
   };
 
   state_t state;

@@ -44,6 +44,10 @@ public:
   using sessions_t = std::map<socket_address<sockaddr_in6>, session>;
   /** @brief Map iterator. */
   using iterator = sessions_t::iterator;
+  /** @brief The native socket type. */
+  using socket_type = io::socket::native_socket_type;
+  /** @brief Invalid socket constant. */
+  static constexpr auto INVALID_SOCKET = io::socket::INVALID_SOCKET;
 
   /**
    * @brief Constructs a TFTP server on the socket address.
@@ -53,6 +57,12 @@ public:
   template <typename T>
   explicit server(socket_address<T> address) noexcept : Base(address)
   {}
+
+  /**
+   * @brief Initializes the TFTP server.
+   * @param socket The primary listening TFTP socket.
+   */
+  auto initialize(const socket_handle &socket) noexcept -> std::error_code;
 
   /**
    * @brief Services the incoming socket_message.
@@ -77,6 +87,8 @@ public:
                   std::span<const std::byte> buf) -> void;
 
 private:
+  /** @brief The primary socket address. */
+  socket_type server_socket_{INVALID_SOCKET};
   /** @brief An atomic counter for constructing temporary files. */
   std::atomic<std::uint16_t> count_;
   /** @brief The TFTP sessions. */
@@ -107,7 +119,7 @@ private:
 
   /** @brief Sends an error notice to client and closes the connection. */
   auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
-             messages::error_t error) -> void;
+             std::uint16_t error) -> void;
 };
 } // namespace tftp
 #endif // TFTP_SERVER_HPP

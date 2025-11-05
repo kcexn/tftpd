@@ -19,11 +19,13 @@
  */
 #include "tftp/tftp_server.hpp"
 #include "tftp/detail/endianness.hpp"
+#include "tftp/protocol/tftp_protocol.hpp"
 
 #include <net/timers/timers.hpp>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cassert>
 #include <filesystem>
 
 #include <arpa/inet.h>
@@ -178,9 +180,46 @@ static inline auto clamped_exp_weighted_average(
 }
 // NOLINTEND(bugprone-easily-swappable-parameters)
 
+/** @brief Inserts characters from buf to buffer while accomodating netascii. */
+static inline auto insert_data(std::vector<char> &buffer,
+                               std::span<const char> buf,
+                               std::uint8_t mode) -> void
+{
+  using enum messages::mode_t;
+
+  const auto *end = buf.data() + buf.size();
+  for (const auto *get = buf.data(); get != end; ++get)
+  {
+    if (mode == NETASCII)
+    {
+      if (*get == '\0')
+        continue;
+
+      if (*get == '\n')
+      {
+        if (buffer.size() > sizeof(messages::data) && buffer.back() == '\0')
+        {
+          buffer.pop_back();
+        }
+        else
+        {
+          buffer.push_back('\r');
+        }
+      }
+    }
+
+    buffer.push_back(*get);
+
+    if (mode == NETASCII && *get == '\r')
+    {
+      buffer.push_back('\0');
+    }
+  }
+}
+
 #ifndef TFTP_SERVER_STATIC_TEST
 auto server::error(async_context &ctx, const socket_dialog &socket,
-                   iterator siter, messages::error_t error) -> void
+                   iterator siter, std::uint16_t error) -> void
 {
   using namespace stdexec;
   using enum messages::error_t;
@@ -243,7 +282,7 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   auto addrstr = to_str(addrbuf, key);
 
   auto &state = session.state;
-  if (state.opc == RRQ)
+  if (state.opc == RRQ && *socket.socket != server_socket_)
   {
     if (state.buffer.size() < messages::DATAMSG_MAXLEN)
     {
@@ -274,7 +313,7 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 
   if (session.state.opc != 0)
   {
-    spdlog::debug("Duplicate RRQ from {}.", addrstr); // GCOVR_EXCL_LINE
+    spdlog::debug("Duplicate RRQ from {}.", addrstr);
     return reader(ctx, socket, rctx);
   }
 
@@ -288,42 +327,43 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
   }
 
   auto &state = session.state = *state_;
-
-  if (state.opc == RRQ)
+  assert(state.opc == RRQ && "Operation MUST be a read request.");
+  if (state.mode == messages::MAIL)
   {
-    // Copy to a temporary file.
-    auto tmp = (std::filesystem::temp_directory_path() / "tftp.")
-                   .concat(std::format("{:05d}", count_++));
-
-    auto err = std::error_code();
-    if (!std::filesystem::copy_file(state.target, tmp, err))
-    {
-      spdlog::error("Copying {} to {} failed with error: {}",
-                    state.target.c_str(), tmp.c_str(), err.message());
-      if (err == std::errc::no_such_file_or_directory)
-        return error(ctx, socket, siter, FILE_NOT_FOUND);
-
-      return error(ctx, socket, siter, ACCESS_VIOLATION);
-    }
-
-    // Open the temporary file for sending.
-    state.tmp = tmp;
-    state.file = std::make_shared<std::fstream>(
-        state.tmp, std::ios::in | std::ios::binary);
-    if (!state.file->is_open()) [[unlikely]]
-    {
-      spdlog::error("Unable to open the temporary file: {}", // GCOVR_EXCL_LINE
-                    state.tmp.c_str());                      // GCOVR_EXCL_LINE
-      return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
-    }
-
-    // Start sending the file.
-    send_next(ctx, socket, siter);
+    spdlog::error("Invalid RRQ from {}. Mail mode is not allowed.", addrstr);
+    return error(ctx, socket, siter, ILLEGAL_OPERATION);
   }
-  else
+
+  // Copy to a temporary file.
+  auto tmp = (std::filesystem::temp_directory_path() / "tftp.")
+                 .concat(std::format("{:05d}", count_++));
+
+  auto err = std::error_code();
+  if (!std::filesystem::copy_file(state.target, tmp, err))
   {
-    return error(ctx, socket, siter, NOT_DEFINED);
+    spdlog::error("Copying {} to {} failed with error: {}",
+                  state.target.c_str(), tmp.c_str(), err.message());
+    if (err == std::errc::no_such_file_or_directory)
+      return error(ctx, socket, siter, FILE_NOT_FOUND);
+
+    return error(ctx, socket, siter, ACCESS_VIOLATION);
   }
+
+  // Open the temporary file for sending.
+  state.tmp = tmp;
+  state.file = std::make_shared<std::fstream>(state.tmp,
+                                              std::ios::in | std::ios::binary);
+  if (!state.file->is_open()) [[unlikely]]
+  {
+    spdlog::error("Unable to open the temporary file: {}", // GCOVR_EXCL_LINE
+                  state.tmp.c_str());                      // GCOVR_EXCL_LINE
+    return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
+  }
+
+  // Start sending the file.
+  send_next(ctx, socket, siter);
+
+  reader(ctx, socket, rctx);
 }
 
 auto server::send(async_context &ctx, const socket_dialog &socket,
@@ -362,7 +402,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   auto &[start_time, avg_rtt] = session.state.statistics;
 
   // Reset the timer and prepare the next block.
-  ctx.timers.remove(timer);
+  timer = ctx.timers.remove(timer);
   block_num += 1;
 
   // Size the buffer for a complete TFTP DATA message.
@@ -380,7 +420,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   put += sizeof(*msg);
 
   if (buffer.size() > messages::DATAMSG_MAXLEN)
-    put = std::copy(put, buffer.end(), put);
+    put = std::copy(put + messages::DATALEN, buffer.end(), put);
 
   buffer.erase(put, buffer.end());
 
@@ -390,34 +430,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   if (file->fail()) [[unlikely]]
     return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
 
-  auto *end = buf.begin() + len;
-  for (auto *get = buf.begin(); get != end; ++get)
-  {
-    if (mode == NETASCII)
-    {
-      if (*get == '\0')
-        continue;
-
-      if (*get == '\n')
-      {
-        if (buffer.size() > sizeof(messages::data) && buffer.back() == '\0')
-        {
-          buffer.pop_back();
-        }
-        else
-        {
-          buffer.push_back('\r');
-        }
-      }
-    }
-
-    buffer.push_back(*get);
-
-    if (mode == NETASCII && *get == '\r')
-    {
-      buffer.push_back('\0');
-    }
-  }
+  insert_data(buffer, std::span(buf.data(), len), mode);
 
   send(ctx, socket, siter);
 
@@ -427,9 +440,11 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
       duration_cast<milliseconds>(now - start_time), avg_rtt);
 
   start_time = now;
+
+  // This isn't thread-safe.
   timer = ctx.timers.add(
       2 * avg_rtt,
-      [&, socket, siter, retries = 0](net::timers::timer_id tid) mutable {
+      [&, siter, retries = 0](auto) mutable {
         constexpr auto MAX_RETRIES = 5;
         if (retries++ >= MAX_RETRIES)
           return error(ctx, socket, siter, TIMED_OUT);
@@ -450,7 +465,7 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   auto &tmp = session.state.tmp;
 
   // Delete any associated timers.
-  ctx.timers.remove(timer);
+  timer = ctx.timers.remove(timer);
 
   // Close the file if it is open.
   file.reset();
@@ -463,8 +478,17 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
         tmp.c_str(), err.message());                         // GCOVR_EXCL_LINE
   }
 
+  // In case we have timed out.
+  io::shutdown(socket, SHUT_RD);
+
   // Cleanup the rest of the session.
   sessions_.erase(siter);
+}
+
+auto server::initialize(const socket_handle &socket) noexcept -> std::error_code
+{
+  server_socket_ = static_cast<socket_type>(socket);
+  return {};
 }
 
 auto server::service(async_context &ctx, const socket_dialog &socket,
@@ -493,16 +517,22 @@ auto server::operator()(async_context &ctx, const socket_dialog &socket,
                         const std::shared_ptr<read_context> &rctx,
                         std::span<const std::byte> buf) -> void
 {
+  using enum messages::opcode_t;
+  using enum messages::error_t;
   using namespace io::socket;
   if (!rctx)
     return;
 
-  auto [siter, emplaced] = sessions_.try_emplace(*rctx->msg.address);
-  auto &[key, session] = *siter;
+  auto address = *rctx->msg.address;
+  if (address->sin6_family == AF_INET)
+  {
+    address = socket_address(
+        reinterpret_cast<sockaddr_in *>(std::ranges::data(address)));
+  }
 
+  auto [siter, emplaced] = sessions_.try_emplace(address);
   if (emplaced)
   {
-    auto address = key;
     service(ctx, ctx.poller.emplace(address->sin6_family, SOCK_DGRAM, 0),
             std::make_shared<read_context>(), buf, siter);
     reader(ctx, socket, rctx);

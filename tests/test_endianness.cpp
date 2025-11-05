@@ -21,9 +21,15 @@
 
 using namespace tftp::detail;
 
-struct EndiannessTest16 : public ::testing::TestWithParam<std::pair<std::uint16_t, std::uint16_t>> {};
-struct EndiannessTest32 : public ::testing::TestWithParam<std::pair<std::uint32_t, std::uint32_t>> {};
-struct EndiannessTest64 : public ::testing::TestWithParam<std::pair<std::uint64_t, std::uint64_t>> {};
+struct EndiannessTest16
+    : public ::testing::TestWithParam<std::pair<std::uint16_t, std::uint16_t>> {
+};
+struct EndiannessTest32
+    : public ::testing::TestWithParam<std::pair<std::uint32_t, std::uint32_t>> {
+};
+struct EndiannessTest64
+    : public ::testing::TestWithParam<std::pair<std::uint64_t, std::uint64_t>> {
+};
 
 TEST_P(EndiannessTest16, HostToNetworkAndBack)
 {
@@ -61,7 +67,6 @@ TEST_P(EndiannessTest64, HostToNetworkAndBack)
 {
   const auto [value, swapped] = GetParam();
 
-
   if constexpr (std::endian::native == std::endian::little)
   {
     EXPECT_EQ(htonll(value), swapped);
@@ -75,8 +80,10 @@ TEST_P(EndiannessTest64, HostToNetworkAndBack)
 }
 
 INSTANTIATE_TEST_SUITE_P(EndiannessTestCases16, EndiannessTest16,
-                       ::testing::Values(std::make_pair(0x1234, 0x3412)));
+                         ::testing::Values(std::make_pair(0x1234, 0x3412)));
 INSTANTIATE_TEST_SUITE_P(EndiannessTestCases32, EndiannessTest32,
-                       ::testing::Values(std::make_pair(0x12345678, 0x78563412)));
+                         ::testing::Values(std::make_pair(0x12345678,
+                                                          0x78563412)));
 INSTANTIATE_TEST_SUITE_P(EndiannessTestCases64, EndiannessTest64,
-                       ::testing::Values(std::make_pair(0x123456789ABCDEF0,0xF0DEBC9A78563412)));
+                         ::testing::Values(std::make_pair(0x123456789ABCDEF0,
+                                                          0xF0DEBC9A78563412)));

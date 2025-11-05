@@ -19,7 +19,7 @@ CPMAddPackage(
 )
 
 # Add cppnet as a dependency.
-CPMAddPackage("gh:kcexn/cloudbus-net@0.7.2")
+CPMAddPackage("gh:kcexn/cloudbus-net@0.7.3")
 
 # Add spdlog as a dependency.
 CPMAddPackage("gh:gabime/spdlog@1.16.0")
