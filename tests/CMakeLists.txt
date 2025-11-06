@@ -2,7 +2,7 @@ include(GoogleTest)
 
 set(TEST_NAMES
   test_argument_parser
-  test_endianness
+  test_endian
   test_generator
   test_tftp_server_static
   test_tftp_server

@@ -20,7 +20,7 @@
 #pragma once
 #ifndef TFTP_PROTOCOL_HPP
 #define TFTP_PROTOCOL_HPP
-#include "tftp/detail/endianness.hpp"
+#include "tftp/detail/endian.hpp"
 
 #include <array>
 #include <cassert>
