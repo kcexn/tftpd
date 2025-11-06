@@ -679,12 +679,6 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   sessions_.erase(siter);
 }
 
-auto server::initialize(const socket_handle &socket) noexcept -> std::error_code
-{
-  server_socket_ = static_cast<socket_type>(socket);
-  return {};
-}
-
 auto server::service(async_context &ctx, const socket_dialog &socket,
                      const std::shared_ptr<read_context> &rctx,
                      std::span<const std::byte> buf, iterator siter) -> void

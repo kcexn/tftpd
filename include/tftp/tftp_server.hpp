@@ -59,12 +59,6 @@ public:
   {}
 
   /**
-   * @brief Initializes the TFTP server.
-   * @param socket The primary listening TFTP socket.
-   */
-  auto initialize(const socket_handle &socket) noexcept -> std::error_code;
-
-  /**
    * @brief Services the incoming socket_message.
    * @param ctx The asynchronous context of the message.
    * @param socket The socket that the message was read from.
