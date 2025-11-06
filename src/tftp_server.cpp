@@ -267,7 +267,8 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
     ctx.scope.spawn(std::move(sendmsg));
   }
 
-  cleanup(ctx, socket, siter);
+  if (error != UNKNOWN_TID)
+    cleanup(ctx, socket, siter);
 }
 
 auto server::ack(async_context &ctx, const socket_dialog &socket,
@@ -278,11 +279,17 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   using enum messages::error_t;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
+  if (socket == server_socket_)
+  {
+    error(ctx, socket, siter, UNKNOWN_TID);
+    return reader(ctx, socket, rctx);
+  }
+
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
 
   auto &state = session.state;
-  if (state.opc == RRQ && *socket.socket != server_socket_)
+  if (state.opc == RRQ)
   {
     if (state.buffer.size() < messages::DATAMSG_MAXLEN)
     {
@@ -297,7 +304,7 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
     return reader(ctx, socket, rctx);
   }
 
-  return error(ctx, socket, siter, UNKNOWN_TID);
+  error(ctx, socket, siter, ILLEGAL_OPERATION);
 }
 
 auto server::rrq(async_context &ctx, const socket_dialog &socket,
@@ -478,7 +485,9 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
         tmp.c_str(), err.message());                         // GCOVR_EXCL_LINE
   }
 
-  // In case we have timed out.
+  // Shutdown the read-side of the socket.
+  // This removes the socket from the underlying event-loop if
+  // we have reached here due to a timeout.
   io::shutdown(socket, SHUT_RD);
 
   // Cleanup the rest of the session.

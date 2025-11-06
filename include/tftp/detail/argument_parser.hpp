@@ -30,7 +30,9 @@ namespace tftp::detail {
 struct argument_parser {
   /** @brief Command-line arguments are parsed into options. */
   struct option {
+    /** @brief option flag. */
     std::string_view flag;
+    /** @brief option value. */
     std::string_view value;
   };
   /**

@@ -89,6 +89,15 @@ TEST_F(TftpServerTests, TestInvalidAck)
 {
   using namespace io::socket;
 
+  std::vector<char> test_data(511);
+
+  {
+    auto inf = std::ifstream("/dev/random");
+    auto outf = std::ofstream(test_file);
+    inf.read(test_data.data(), test_data.size());
+    outf.write(test_data.data(), test_data.size());
+  }
+
   auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
   addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
   auto len = io::sendmsg(
@@ -98,8 +107,35 @@ TEST_F(TftpServerTests, TestInvalidAck)
   auto recvbuf = std::vector<char>(516);
   auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
                                 .buffers = recvbuf};
+
+  len = io::recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(
+      std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
+
+  len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
+  ASSERT_EQ(len, rrq_octet.size());
+
+  len = io::recvmsg(sock, sockmsg, 0);
+
+  auto session_address = *sockmsg.address;
+
+  auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
+  auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ackmsg->block_num = datamsg->block_num;
+
+  len = io::sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack},
+                    0);
+  ASSERT_EQ(len, ack.size());
+
   len = io::recvmsg(sock, sockmsg, 0);
   ASSERT_EQ(std::memcmp(recvbuf.data(), errors::unknown_tid().data(), len), 0);
+
+  len = io::sendmsg(
+      sock, socket_message{.address = {session_address}, .buffers = ack}, 0);
+  ASSERT_EQ(len, ack.size());
+
+  remove(test_file);
 }
 
 TEST_F(TftpServerTests, TestRRQTimeout)
