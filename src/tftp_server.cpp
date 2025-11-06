@@ -238,6 +238,10 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
       msg.buffers = errors::file_not_found();
       break;
 
+    case DISK_FULL:
+      msg.buffers = errors::disk_full();
+      break;
+
     case UNKNOWN_TID:
       msg.buffers = errors::unknown_tid();
       break;
@@ -543,11 +547,12 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
     // Write the data to the file.
     auto &file = session.state.file;
     file->write(data, static_cast<std::streamsize>(buf.size()));
+
     if (file->fail())
     {
       spdlog::error("Invalid DATA from {}, {} failed.", addrstr,
                     state.tmp.c_str());
-      return error(ctx, socket, siter, ACCESS_VIOLATION);
+      return error(ctx, socket, siter, DISK_FULL);
     }
 
     // File writing is complete.
