@@ -354,7 +354,7 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
     return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
   }
 
-  state.socket = static_cast<socket_type>(*socket.socket);
+  state.socket = static_cast<session::socket_type>(*socket.socket);
 
   send_next(ctx, socket, siter);
   reader(ctx, socket, rctx);
@@ -504,7 +504,7 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
 
   state.tmp = tmp;
 
-  state.socket = static_cast<socket_type>(*socket.socket);
+  state.socket = static_cast<session::socket_type>(*socket.socket);
 
   get_next(ctx, socket, siter);
   reader(ctx, socket, rctx);

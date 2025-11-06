@@ -44,10 +44,6 @@ public:
   using sessions_t = std::multimap<socket_address<sockaddr_in6>, session>;
   /** @brief Map iterator. */
   using iterator = sessions_t::iterator;
-  /** @brief The native socket type. */
-  using socket_type = io::socket::native_socket_type;
-  /** @brief Invalid socket constant. */
-  static constexpr auto INVALID_SOCKET = io::socket::INVALID_SOCKET;
 
   /**
    * @brief Constructs a TFTP server on the socket address.
@@ -81,14 +77,16 @@ public:
                   std::span<const std::byte> buf) -> void;
 
 private:
-  /** @brief The primary socket address. */
-  socket_type server_socket_{INVALID_SOCKET};
   /** @brief An atomic counter for constructing temporary files. */
   std::atomic<std::uint16_t> count_;
   /** @brief The TFTP sessions. */
   sessions_t sessions_;
 
   // Application Logic.
+  /** @brief Sends an error notice to client and closes the connection. */
+  auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
+             std::uint16_t error) -> void;
+
   /** @brief Services a read request. */
   auto rrq(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
@@ -121,17 +119,13 @@ private:
   auto send_next(async_context &ctx, const socket_dialog &socket,
                  iterator siter) -> void;
 
-  /** @brief Sends the current block of data to the client.. */
+  /** @brief Acks the current block of data to the client. */
   static auto ack(async_context &ctx, const socket_dialog &socket,
                   iterator siter) -> void;
 
   /** @brief Prepares to receive the next block of a file from the client. */
   auto get_next(async_context &ctx, const socket_dialog &socket,
                 iterator siter) -> void;
-
-  /** @brief Sends an error notice to client and closes the connection. */
-  auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
-             std::uint16_t error) -> void;
 };
 } // namespace tftp
 #endif // TFTP_SERVER_HPP
