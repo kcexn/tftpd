@@ -41,7 +41,7 @@ public:
   /** @brief The socket message type. */
   using socket_message = io::socket::socket_message<sockaddr_in6>;
   /** @brief Sessions map. */
-  using sessions_t = std::map<socket_address<sockaddr_in6>, session>;
+  using sessions_t = std::multimap<socket_address<sockaddr_in6>, session>;
   /** @brief Map iterator. */
   using iterator = sessions_t::iterator;
   /** @brief The native socket type. */
@@ -105,6 +105,16 @@ private:
            const std::shared_ptr<read_context> &rctx,
            std::span<const std::byte> msg, iterator siter) -> void;
 
+  /** @brief Services a write request. */
+  auto wrq(async_context &ctx, const socket_dialog &socket,
+           const std::shared_ptr<read_context> &rctx,
+           std::span<const std::byte> buf, iterator siter) -> void;
+
+  /** @brief Services a data packet. */
+  auto data(async_context &ctx, const socket_dialog &socket,
+            const std::shared_ptr<read_context> &rctx,
+            std::span<const std::byte> buf, iterator siter) -> void;
+
   /** @brief Cleans-up the session from the server. */
   auto cleanup(async_context &ctx, const socket_dialog &socket,
                iterator siter) -> void;
@@ -116,6 +126,14 @@ private:
   /** @brief Prepares and sends the next block of a file to the client. */
   auto send_next(async_context &ctx, const socket_dialog &socket,
                  iterator siter) -> void;
+
+  /** @brief Sends the current block of data to the client.. */
+  static auto ack(async_context &ctx, const socket_dialog &socket,
+                  iterator siter) -> void;
+
+  /** @brief Prepares to receive the next block of a file from the client. */
+  auto get_next(async_context &ctx, const socket_dialog &socket,
+                iterator siter) -> void;
 
   /** @brief Sends an error notice to client and closes the connection. */
   auto error(async_context &ctx, const socket_dialog &socket, iterator siter,

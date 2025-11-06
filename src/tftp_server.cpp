@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Echo is free software: you can redistribute it and/or modify
+ * tftp-server is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Echo is distributed in the hope that it will be useful,
+ * tftp-server is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Echo.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftp-server.  If not, see <https://www.gnu.org/licenses/>.
  */
 /**
  * @file tftp_server.cpp
@@ -49,8 +49,7 @@ static inline auto strnlen(const char *str,
   return found - str;
 }
 
-/** @brief Converts the socket address to a string in the buffer provided by
- * buf. */
+/** @brief Converts the socket address to a string inside buf. */
 static inline auto
 to_str(std::span<char> buf,
        socket_address<sockaddr_in6> addr) noexcept -> std::string_view
@@ -91,7 +90,7 @@ to_str(std::span<char> buf,
   return {buf.data()};
 }
 
-/** @brief Converts valid C strings to spans. */
+/** @brief Converts valid C strings to string views. */
 static inline auto to_view(const char *str,
                            std::size_t maxlen) -> std::string_view
 {
@@ -102,7 +101,7 @@ static inline auto to_view(const char *str,
   return str;
 }
 
-/** @brief Converts a span to a TFTP mode. */
+/** @brief Converts a string_view to a TFTP mode. */
 static inline auto to_mode(std::string_view mode) -> messages::mode_t
 {
   using enum messages::mode_t;
@@ -166,19 +165,15 @@ parse_request(std::span<const std::byte> msg) -> std::optional<session::state_t>
   return state;
 }
 
-// NOLINTBEGIN(bugprone-easily-swappable-parameters)
-static constexpr auto CLAMP_MIN_DEFAULT = milliseconds(5);
-static constexpr auto CLAMP_MAX_DEFAULT = milliseconds(500);
-static inline auto clamped_exp_weighted_average(
-    milliseconds curr, milliseconds prev, milliseconds min = CLAMP_MIN_DEFAULT,
-    milliseconds max = CLAMP_MAX_DEFAULT) -> milliseconds
+static inline auto
+clamped_exp_weighted_average(milliseconds curr,
+                             milliseconds prev) -> milliseconds
 {
   auto avg = prev * 3 / 4 + curr / 4;
-  avg = std::min(avg, max);
-  avg = std::max(avg, min);
+  avg = std::min(avg, session::TIMEOUT_MAX);
+  avg = std::max(avg, session::TIMEOUT_MIN);
   return avg;
 }
-// NOLINTEND(bugprone-easily-swappable-parameters)
 
 /** @brief Inserts characters from buf to buffer while accomodating netascii. */
 static inline auto insert_data(std::vector<char> &buffer,
@@ -267,8 +262,7 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
     ctx.scope.spawn(std::move(sendmsg));
   }
 
-  if (error != UNKNOWN_TID)
-    cleanup(ctx, socket, siter);
+  cleanup(ctx, socket, siter);
 }
 
 auto server::ack(async_context &ctx, const socket_dialog &socket,
@@ -278,12 +272,6 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   using enum messages::opcode_t;
   using enum messages::error_t;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
-
-  if (socket == server_socket_)
-  {
-    error(ctx, socket, siter, UNKNOWN_TID);
-    return reader(ctx, socket, rctx);
-  }
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
@@ -304,7 +292,8 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
     return reader(ctx, socket, rctx);
   }
 
-  error(ctx, socket, siter, ILLEGAL_OPERATION);
+  spdlog::error("Ack from {} with unknown TID.", addrstr);
+  error(ctx, socket, siter, UNKNOWN_TID);
 }
 
 auto server::rrq(async_context &ctx, const socket_dialog &socket,
@@ -317,12 +306,6 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
-
-  if (session.state.opc != 0)
-  {
-    spdlog::debug("Duplicate RRQ from {}.", addrstr);
-    return reader(ctx, socket, rctx);
-  }
 
   spdlog::info("New RRQ from {}.", addrstr);
 
@@ -367,9 +350,9 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
     return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
   }
 
-  // Start sending the file.
-  send_next(ctx, socket, siter);
+  state.socket = static_cast<socket_type>(*socket.socket);
 
+  send_next(ctx, socket, siter);
   reader(ctx, socket, rctx);
 }
 
@@ -448,7 +431,6 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   start_time = now;
 
-  // This isn't thread-safe.
   timer = ctx.timers.add(
       2 * avg_rtt,
       [&, siter, retries = 0](auto) mutable {
@@ -461,6 +443,204 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
       2 * avg_rtt);
 }
 // NOLINTEND(cppcoreguidelines-pro-*)
+
+auto server::wrq(async_context &ctx, const socket_dialog &socket,
+                 const std::shared_ptr<read_context> &rctx,
+                 std::span<const std::byte> buf, iterator siter) -> void
+{
+  using enum messages::opcode_t;
+  using enum messages::error_t;
+  auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
+
+  auto &[key, session] = *siter;
+  auto addrstr = to_str(addrbuf, key);
+
+  spdlog::info("New WRQ from {}.", addrstr);
+
+  auto state_ = parse_request(buf);
+  if (!state_)
+  {
+    spdlog::error("Invalid WRQ from {}.", addrstr);
+    return error(ctx, socket, siter, NOT_DEFINED);
+  }
+
+  auto &state = session.state = *state_;
+  assert(state.opc == WRQ && "Operation MUST be a write request.");
+  if (state.mode == messages::MAIL)
+  {
+    spdlog::error("Invalid WRQ from {}. Mail mode is not supported.", addrstr);
+    return error(ctx, socket, siter, NOT_DEFINED);
+  }
+
+  // Check that the target file can be opened for writing.
+  state.file = std::make_shared<std::fstream>(state.target,
+                                              std::ios::app | std::ios::binary);
+  if (!state.file->is_open())
+  {
+    spdlog::error(
+        "WRQ error from {}. Unable to open {} for writing.", // GCOVR_EXCL_LINE
+        addrstr, state.target.c_str());                      // GCOVR_EXCL_LINE
+    return error(ctx, socket, siter, ACCESS_VIOLATION);      // GCOVR_EXCL_LINE
+  }
+
+  // Create and open a temporary file for writing.
+  auto tmp = (std::filesystem::temp_directory_path() / "tftp.")
+                 .concat(std::format("{:05d}", count_++));
+
+  state.file = std::make_shared<std::fstream>(
+      tmp, std::ios::out | std::ios::binary | std::ios::trunc);
+
+  if (!state.file->is_open())
+  {
+    spdlog::error(
+        "WRQ error from {}. Unable to open {} for writing.", // GCOVR_EXCL_LINE
+        addrstr, tmp.c_str());                               // GCOVR_EXCL_LINE
+    return error(ctx, socket, siter, ACCESS_VIOLATION);      // GCOVR_EXCL_LINE
+  }
+
+  state.tmp = tmp;
+
+  state.socket = static_cast<socket_type>(*socket.socket);
+
+  get_next(ctx, socket, siter);
+  reader(ctx, socket, rctx);
+}
+
+auto server::data(async_context &ctx, const socket_dialog &socket,
+                  const std::shared_ptr<read_context> &rctx,
+                  std::span<const std::byte> buf, iterator siter) -> void
+{
+  using enum messages::opcode_t;
+  using enum messages::error_t;
+  auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
+
+  auto &[key, session] = *siter;
+  auto addrstr = to_str(addrbuf, key);
+
+  auto &state = session.state;
+  if (state.opc == DATA)
+  {
+    const auto *msg = reinterpret_cast<const messages::data *>(buf.data());
+
+    // Re-ACK duplicate packets.
+    auto &block_num = session.state.block_num;
+    if (ntohs(msg->block_num) == block_num)
+      get_next(ctx, socket, siter);
+
+    if (ntohs(msg->block_num) != block_num + 1)
+      return reader(ctx, socket, rctx);
+
+    // Update statistics.
+    auto now = session::clock::now();
+    auto &[start_time, avg_rtt] = session.state.statistics;
+    avg_rtt = clamped_exp_weighted_average(
+        duration_cast<milliseconds>(now - start_time), avg_rtt);
+    start_time = now;
+
+    const char *data = reinterpret_cast<const char *>(msg) + sizeof(*msg);
+    block_num++;
+
+    // Write the data to the file.
+    auto &file = session.state.file;
+    file->write(data, static_cast<std::streamsize>(buf.size()));
+    if (file->fail())
+    {
+      spdlog::error("Invalid DATA from {}, {} failed.", addrstr,
+                    state.tmp.c_str());
+      return error(ctx, socket, siter, ACCESS_VIOLATION);
+    }
+
+    // File writing is complete.
+    if (buf.size() < messages::DATAMSG_MAXLEN)
+    {
+      file->close();
+
+      auto &timer = session.state.timer;
+      auto &tmp = session.state.tmp;
+      auto &target = session.state.target;
+
+      std::error_code err;
+      std::filesystem::rename(tmp, target, err);
+      if (err != std::errc{})
+      {
+        spdlog::error("WRQ failed for {} with error: {}.", addrstr,
+                      err.message());
+        return error(ctx, socket, siter, ACCESS_VIOLATION);
+      }
+
+      timer = ctx.timers.remove(timer);
+      timer = ctx.timers.add(2 * avg_rtt, [&, siter, key, target](auto) {
+        auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
+        auto addrstr = to_str(addrbuf, key);
+
+        spdlog::info("WRQ from {} for {} complete.", addrstr, target.c_str());
+        cleanup(ctx, socket, siter);
+      });
+    }
+
+    get_next(ctx, socket, siter);
+    return reader(ctx, socket, rctx);
+  }
+
+  spdlog::error("Data from {} with unknown TID.", addrstr);
+  error(ctx, socket, siter, UNKNOWN_TID);
+}
+
+/** @brief Acks the current block of data to the client.. */
+auto server::ack(async_context &ctx, const socket_dialog &socket,
+                 iterator siter) -> void
+{
+  using enum messages::opcode_t;
+  using namespace stdexec;
+  using socket_message = io::socket::socket_message<sockaddr_in6>;
+
+  auto &[key, session] = *siter;
+  auto &buffer = session.state.buffer;
+  auto &block_num = session.state.block_num;
+
+  buffer.resize(sizeof(messages::ack));
+
+  auto *ack = reinterpret_cast<messages::ack *>(buffer.data());
+  ack->opc = htons(ACK);
+  ack->block_num = htons(block_num);
+
+  sender auto sendmsg =
+      io::sendmsg(socket, socket_message{.address = {key}, .buffers = buffer},
+                  0) |
+      then([](auto &&) {}) | upon_error([](auto &&) {});
+
+  ctx.scope.spawn(std::move(sendmsg));
+}
+
+/** @brief Prepares to receive the next block of a file from the client. */
+auto server::get_next(async_context &ctx, const socket_dialog &socket,
+                      iterator siter) -> void
+{
+  using enum messages::error_t;
+  using namespace std::chrono;
+
+  auto &[key, session] = *siter;
+  auto &timer = session.state.timer;
+  auto &file = session.state.file;
+  auto &[_, avg_rtt] = session.state.statistics;
+
+  ack(ctx, socket, siter);
+
+  if (file && file->is_open()) // WRQ is not yet complete.
+  {
+    timer = ctx.timers.remove(timer);
+    timer = ctx.timers.add(
+        2 * avg_rtt,
+        [&, siter, retries = 0](auto) mutable {
+          constexpr auto MAX_RETRIES = 5;
+          if (retries++ >= MAX_RETRIES)
+            return error(ctx, socket, siter, TIMED_OUT);
+
+          ack(ctx, socket, siter);
+        },
+        2 * avg_rtt);
+  }
+}
 
 auto server::cleanup(async_context &ctx, const socket_dialog &socket,
                      iterator siter) -> void
@@ -517,6 +697,12 @@ auto server::service(async_context &ctx, const socket_dialog &socket,
     case ACK:
       return ack(ctx, socket, rctx, buf, siter);
 
+    case WRQ:
+      return wrq(ctx, socket, rctx, buf, siter);
+
+    case DATA:
+      return data(ctx, socket, rctx, buf, siter);
+
     default:
       return error(ctx, socket, siter, ILLEGAL_OPERATION);
   }
@@ -539,17 +725,18 @@ auto server::operator()(async_context &ctx, const socket_dialog &socket,
         reinterpret_cast<sockaddr_in *>(std::ranges::data(address)));
   }
 
-  auto [siter, emplaced] = sessions_.try_emplace(address);
-  if (emplaced)
+  auto [siter, last] = sessions_.equal_range(address);
+  for (; siter != last; ++siter)
   {
-    service(ctx, ctx.poller.emplace(address->sin6_family, SOCK_DGRAM, 0),
-            std::make_shared<read_context>(), buf, siter);
-    reader(ctx, socket, rctx);
+    auto &[key, session] = *siter;
+    if (session.state.socket == socket)
+      return service(ctx, socket, rctx, buf, siter);
   }
-  else
-  {
-    service(ctx, socket, rctx, buf, siter);
-  }
+
+  siter = sessions_.emplace(address, session());
+  service(ctx, ctx.poller.emplace(address->sin6_family, SOCK_DGRAM, 0),
+          std::make_shared<read_context>(), buf, siter);
+  reader(ctx, socket, rctx);
 }
 #endif // TFTP_SERVER_STATIC_TEST
 } // namespace tftp

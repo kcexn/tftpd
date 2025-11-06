@@ -43,6 +43,14 @@ struct session {
   template <typename T> using socket_address = io::socket::socket_address<T>;
   /** @brief The invalid timer value. */
   static constexpr auto INVALID_TIMER = net::timers::INVALID_TIMER;
+  /** @brief The native socket type. */
+  using socket_type = io::socket::native_socket_type;
+  /** @brief The invalid socket constant. */
+  static constexpr auto INVALID_SOCKET = io::socket::INVALID_SOCKET;
+  /** @brief Timeout min value. */
+  static constexpr auto TIMEOUT_MIN = std::chrono::milliseconds(5);
+  /** @brief Timeout max value. */
+  static constexpr auto TIMEOUT_MAX = std::chrono::milliseconds(500);
 
   /** @brief The session state. */
   struct state_t {
@@ -57,12 +65,14 @@ struct session {
     /** @brief RTT statistics. */
     struct {
       /** @brief Used to mark the start time of an interval. */
-      timestamp start_time;
+      timestamp start_time{clock::now()};
       /** @brief The aggregate avg round trip time. */
-      duration avg_rtt;
+      duration avg_rtt{TIMEOUT_MAX};
     } statistics;
     /** @brief A timer id associated to the TFTP session. */
     timer_id timer{INVALID_TIMER};
+    /** @brief The local socket that the session is keyed on. */
+    socket_type socket{INVALID_SOCKET};
     /** @brief The current protocol block number. */
     std::uint16_t block_num = 0;
     /** @brief The file operation. */

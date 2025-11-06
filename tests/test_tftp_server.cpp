@@ -109,8 +109,7 @@ TEST_F(TftpServerTests, TestInvalidAck)
                                 .buffers = recvbuf};
 
   len = io::recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(
-      std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
+  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::unknown_tid().data(), len), 0);
 
   len = io::sendmsg(
       sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
@@ -266,16 +265,15 @@ TEST_F(TftpServerTests, TestDuplicateRRQ)
       sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
   ASSERT_EQ(len, rrq_octet.size());
 
-  for (std::size_t i = 0; i == 0 || len == 516; ++i)
+  len = 516;
+  while (len == 516)
   {
     using namespace io;
     auto recvbuf = std::vector<char>(516);
     auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
                                   .buffers = recvbuf};
     len = recvmsg(sock, sockmsg, 0);
-    ASSERT_EQ(
-        std::memcmp(recvbuf.data() + 4, test_data.data() + i * 512, len - 4),
-        0);
+    ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
 
     auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
     auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
