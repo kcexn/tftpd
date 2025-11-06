@@ -92,12 +92,12 @@ struct errors {
   static constexpr auto msg(const messages::error_t error,
                             const char (&str)[N]) noexcept
   {
-    using detail::htons;
     using enum messages::opcode_t;
+    using detail::htons_;
 
     constexpr auto bufsize = sizeof(messages::error) + N;
     const auto msg =
-        messages::error{.opc = htons(ERROR), .error = htons(error)};
+        messages::error{.opc = htons_(ERROR), .error = htons_(error)};
     const auto bytes = std::bit_cast<std::array<char, sizeof(msg)>>(msg);
 
     auto buf = std::array<char, bufsize>();

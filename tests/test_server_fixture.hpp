@@ -39,7 +39,6 @@ protected:
   {
     using enum messages::opcode_t;
     using enum net::service::async_context::context_states;
-    using tftp::detail::htons;
 
     addr_v4->sin_family = AF_INET;
     addr_v4->sin_port = htons(8080);

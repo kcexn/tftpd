@@ -30,7 +30,7 @@ namespace tftp::detail {
  * @param hostshort The 16-bit unsigned integer in host byte order.
  * @returns The 16-bit unsigned integer in network byte order.
  */
-constexpr auto htons(const std::uint16_t hostshort) noexcept -> std::uint16_t
+constexpr auto htons_(const std::uint16_t hostshort) noexcept -> std::uint16_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {
@@ -44,7 +44,7 @@ constexpr auto htons(const std::uint16_t hostshort) noexcept -> std::uint16_t
  * @param hostlong The 32-bit unsigned integer in host byte order.
  * @returns The 32-bit unsigned integer in network byte order.
  */
-constexpr auto htonl(const std::uint32_t hostlong) noexcept -> std::uint32_t
+constexpr auto htonl_(const std::uint32_t hostlong) noexcept -> std::uint32_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {
@@ -60,7 +60,7 @@ constexpr auto htonl(const std::uint32_t hostlong) noexcept -> std::uint32_t
  * @returns The 64-bit unsigned integer in network byte order.
  */
 constexpr auto
-htonll(const std::uint64_t hostlonglong) noexcept -> std::uint64_t
+htonll_(const std::uint64_t hostlonglong) noexcept -> std::uint64_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {
@@ -79,11 +79,11 @@ htonll(const std::uint64_t hostlonglong) noexcept -> std::uint64_t
  * @param netshort The 16-bit unsigned integer in network byte order.
  * @returns The 16-bit unsigned integer in host byte order.
  */
-constexpr auto ntohs(const std::uint16_t netshort) noexcept -> std::uint16_t
+constexpr auto ntohs_(const std::uint16_t netshort) noexcept -> std::uint16_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {
-    return static_cast<std::uint16_t>((netshort << 8) | (netshort >> 8));
+    return static_cast<std::uint16_t>((netshort >> 8) | (netshort << 8));
   }
   return netshort;
 }
@@ -93,12 +93,12 @@ constexpr auto ntohs(const std::uint16_t netshort) noexcept -> std::uint16_t
  * @param netlong The 32-bit unsigned integer in network byte order.
  * @returns The 32-bit unsigned integer in host byte order.
  */
-constexpr auto ntohl(const std::uint32_t netlong) noexcept -> std::uint32_t
+constexpr auto ntohl_(const std::uint32_t netlong) noexcept -> std::uint32_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {
-    return (netlong << 24) | ((netlong << 8) & 0x00FF0000) |
-           ((netlong >> 8) & 0x0000FF00) | (netlong >> 24);
+    return (netlong >> 24) | ((netlong >> 8) & 0x0000FF00) |
+           ((netlong << 8) & 0x00FF0000) | (netlong << 24);
   }
   return netlong;
 }
@@ -108,7 +108,8 @@ constexpr auto ntohl(const std::uint32_t netlong) noexcept -> std::uint32_t
  * @param netlonglong The 64-bit unsigned integer in network byte order.
  * @returns The 64-bit unsigned integer in host byte order.
  */
-constexpr auto ntohll(const std::uint64_t netlonglong) noexcept -> std::uint64_t
+constexpr auto
+ntohll_(const std::uint64_t netlonglong) noexcept -> std::uint64_t
 {
   if constexpr (std::endian::native == std::endian::little)
   {

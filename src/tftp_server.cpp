@@ -18,7 +18,6 @@
  * @brief This file defines the TFTP server.
  */
 #include "tftp/tftp_server.hpp"
-#include "tftp/detail/endianness.hpp"
 #include "tftp/protocol/tftp_protocol.hpp"
 
 #include <net/timers/timers.hpp>
@@ -134,7 +133,6 @@ parse_request(std::span<const std::byte> msg) -> std::optional<session::state_t>
 {
   using enum messages::error_t;
   using enum messages::opcode_t;
-  using detail::ntohs;
 
   auto state = session::state_t();
   const auto *buf = msg.data();

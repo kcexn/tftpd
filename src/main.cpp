@@ -1,12 +1,10 @@
 #include "tftp/detail/argument_parser.hpp"
 #include "tftp/tftp_server.hpp"
 
-#include <spdlog/common-inl.h>
-#include <spdlog/common.h>
+#include <spdlog/cfg/helpers.h>
 #include <spdlog/spdlog.h>
 
 #include <charconv>
-#include <condition_variable>
 #include <csignal>
 #include <filesystem>
 #include <format>
@@ -18,7 +16,7 @@ using namespace tftp;
 
 using tftp_server = context_thread<server>;
 
-static constexpr unsigned short PORT = 7;
+static constexpr unsigned short PORT = 69;
 static constexpr char const *const usage =
     "usage: {} [--log-level <LEVEL>] [<PORT>]\n";
 
@@ -79,10 +77,10 @@ struct config {
 
 static auto set_loglevel(std::string_view value) -> int
 {
+  using std::tolower;
   auto level = std::string(value);
   std::ranges::transform(level, level.begin(),
-                         // NOLINTNEXTLINE(readability-identifier-length)
-                         [](unsigned char ch) { return std::tolower(ch); });
+                         [](unsigned char chr) { return tolower(chr); });
 
   auto spdlog_level = spdlog::level::from_str(level);
   if (spdlog_level != spdlog::level::off || level == "off")
@@ -93,13 +91,13 @@ static auto set_loglevel(std::string_view value) -> int
 
   std::cerr << std::format("Unrecognized log level: {}\n", value)
             << "Valid log levels are: ";
-  for (int i = 0; i < spdlog::level::n_levels; ++i)
+
+  int count = 0;
+  for (const auto &level_str : spdlog::level::level_string_views)
   {
-    if (i > 0)
+    if (count++ > 0)
       std::cerr << ", ";
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-    const auto &level_str = spdlog::level::level_string_views[i];
     std::cerr << std::string(level_str.begin(), level_str.end());
   }
   std::cerr << "\n";
@@ -111,10 +109,10 @@ auto parse_args(int argc, char const *const *argv) -> std::optional<config>
   using namespace tftp::detail;
 
   auto conf = config();
-  char const *const progname = std::filesystem::path(*argv).stem().c_str();
+  auto progname = std::filesystem::path(*argv).stem();
 
   auto error = [&]() -> std::optional<config> {
-    std::cerr << std::format(usage, progname);
+    std::cerr << std::format(usage, progname.c_str());
     return std::nullopt;
   };
 
@@ -125,7 +123,7 @@ auto parse_args(int argc, char const *const *argv) -> std::optional<config>
     {
       if (flag == "-h" || flag == "--help")
       {
-        std::cout << std::format(usage, progname);
+        std::cout << std::format(usage, progname.c_str());
         return std::nullopt;
       }
 
@@ -159,9 +157,6 @@ auto main(int argc, char *argv[]) -> int
 
   if (auto conf = parse_args(argc, argv))
   {
-    auto mtx = std::mutex{};
-    auto cvar = std::condition_variable{};
-
     auto address = socket_address<sockaddr_in6>{};
     address->sin6_family = AF_INET6;
     address->sin6_port = htons(conf->port);
@@ -171,10 +166,9 @@ auto main(int argc, char *argv[]) -> int
     auto sighandler = signal_handler(server);
 
     spdlog::info("TFTP server starting on UDP port {}.", conf->port);
-    server.start(mtx, cvar, address);
-
-    auto lock = std::unique_lock{mtx};
-    cvar.wait(lock, [&] { return server.stopped.load(); });
+    server.start(address);
+    server.state.wait(server.PENDING);
+    server.state.wait(server.STARTED);
 
     spdlog::info("TFTP server stopped.");
   }

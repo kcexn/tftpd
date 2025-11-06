@@ -37,13 +37,13 @@ TEST_P(EndiannessTest16, HostToNetworkAndBack)
 
   if constexpr (std::endian::native == std::endian::little)
   {
-    EXPECT_EQ(htons(value), swapped);
-    EXPECT_EQ(ntohs(swapped), value);
+    EXPECT_EQ(htons_(value), swapped);
+    EXPECT_EQ(ntohs_(swapped), value);
   }
   else
   {
-    EXPECT_EQ(htons(value), value);
-    EXPECT_EQ(ntohs(value), value);
+    EXPECT_EQ(htons_(value), value);
+    EXPECT_EQ(ntohs_(value), value);
   }
 }
 
@@ -53,13 +53,13 @@ TEST_P(EndiannessTest32, HostToNetworkAndBack)
 
   if constexpr (std::endian::native == std::endian::little)
   {
-    EXPECT_EQ(htonl(value), swapped);
-    EXPECT_EQ(ntohl(swapped), value);
+    EXPECT_EQ(htonl_(value), swapped);
+    EXPECT_EQ(ntohl_(swapped), value);
   }
   else
   {
-    EXPECT_EQ(htonl(value), value);
-    EXPECT_EQ(ntohl(value), value);
+    EXPECT_EQ(htonl_(value), value);
+    EXPECT_EQ(ntohl_(value), value);
   }
 }
 
@@ -69,13 +69,13 @@ TEST_P(EndiannessTest64, HostToNetworkAndBack)
 
   if constexpr (std::endian::native == std::endian::little)
   {
-    EXPECT_EQ(htonll(value), swapped);
-    EXPECT_EQ(ntohll(swapped), value);
+    EXPECT_EQ(htonll_(value), swapped);
+    EXPECT_EQ(ntohll_(swapped), value);
   }
   else
   {
-    EXPECT_EQ(htonll(value), value);
-    EXPECT_EQ(ntohll(value), value);
+    EXPECT_EQ(htonll_(value), value);
+    EXPECT_EQ(ntohll_(value), value);
   }
 }
 
