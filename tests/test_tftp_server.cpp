@@ -379,6 +379,184 @@ TEST_P(TftpServerRRQNetAsciiTests, TestNetAsciiRRQ)
   remove(test_file);
 }
 
+TEST_F(TftpServerTests, TestWRQ)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  std::vector<char> test_data(511);
+
+  {
+    auto inf = std::ifstream("/dev/random");
+    auto outf = std::ofstream(test_file);
+    inf.read(test_data.data(), test_data.size());
+    outf.write(test_data.data(), test_data.size());
+  }
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_octet}, 0);
+  ASSERT_EQ(len, wrq_octet.size());
+
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = ack};
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 0);
+
+  auto block_num = ntohs(ackmsg->block_num);
+  block_num++;
+
+  auto msg = std::vector<char>(sizeof(messages::data));
+  msg.reserve(sizeof(messages::data) + test_data.size());
+  auto *data = reinterpret_cast<messages::data *>(msg.data());
+  data->opc = htons(messages::DATA);
+  data->block_num = htons(block_num);
+
+  msg.insert(msg.end(), test_data.begin(), test_data.end());
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
+
+  auto compare_data = std::vector<char>(test_data.size());
+  {
+    auto inf = std::ifstream(test_file);
+    auto len = inf.readsome(compare_data.data(), compare_data.size());
+    ASSERT_EQ(len, test_data.size());
+    ASSERT_EQ(
+        std::memcmp(test_data.data(), compare_data.data(), test_data.size()),
+        0);
+  }
+
+  remove(test_file);
+}
+
+TEST_F(TftpServerTests, TestWRQDuplicateData)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  std::vector<char> test_data(511);
+
+  {
+    auto inf = std::ifstream("/dev/random");
+    auto outf = std::ofstream(test_file);
+    inf.read(test_data.data(), test_data.size());
+    outf.write(test_data.data(), test_data.size());
+  }
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_octet}, 0);
+  ASSERT_EQ(len, wrq_octet.size());
+
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = ack};
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 0);
+
+  auto block_num = ntohs(ackmsg->block_num);
+  block_num++;
+
+  auto msg = std::vector<char>(sizeof(messages::data));
+  msg.reserve(sizeof(messages::data) + test_data.size());
+  auto *data = reinterpret_cast<messages::data *>(msg.data());
+  data->opc = htons(messages::DATA);
+  data->block_num = htons(block_num);
+
+  msg.insert(msg.end(), test_data.begin(), test_data.end());
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
+
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
+
+  auto compare_data = std::vector<char>(test_data.size());
+  {
+    auto inf = std::ifstream(test_file);
+    auto len = inf.readsome(compare_data.data(), compare_data.size());
+    ASSERT_EQ(len, test_data.size());
+    ASSERT_EQ(
+        std::memcmp(test_data.data(), compare_data.data(), test_data.size()),
+        0);
+  }
+
+  remove(test_file);
+}
+
+TEST_F(TftpServerTests, TestInvalidWRQ)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  wrq_octet.pop_back();
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_octet}, 0);
+  ASSERT_EQ(len, wrq_octet.size());
+
+  auto recvbuf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = recvbuf};
+  len = recvmsg(sock, sockmsg, 0);
+
+  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::not_implemented().data(), len),
+            0);
+}
+
+TEST_F(TftpServerTests, TestWRQNotPermitted)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_no_permission},
+      0);
+  ASSERT_EQ(len, wrq_no_permission.size());
+
+  auto recvbuf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = recvbuf};
+  len = recvmsg(sock, sockmsg, 0);
+
+  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::access_violation().data(), len),
+            0);
+}
+
 INSTANTIATE_TEST_SUITE_P(TftpRRQTests, TftpServerRRQOctetTests,
                          ::testing::Values(511, 512, 513, 1023, 1024, 1025));
 

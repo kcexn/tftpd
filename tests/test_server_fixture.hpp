@@ -67,6 +67,17 @@ protected:
     std::ranges::copy(std::string_view("mail"), std::back_inserter(rrq_mail));
     rrq_mail.push_back('\0');
 
+    wrq_octet = rrq_octet;
+    opc = htons(WRQ);
+    std::memcpy(wrq_octet.data(), &opc, sizeof(opc));
+
+    wrq_no_permission.resize(sizeof(std::uint16_t));
+    std::memcpy(wrq_no_permission.data(), &opc, sizeof(messages::opcode_t));
+
+    std::ranges::copy("/root/tftp.no-permission",
+                      std::back_inserter(wrq_no_permission));
+    std::ranges::copy("octet", std::back_inserter(wrq_no_permission));
+
     ack.resize(sizeof(messages::ack));
     auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
     ackmsg->opc = htons(ACK);
@@ -97,6 +108,8 @@ protected:
   std::vector<char> rrq_octet;
   std::vector<char> rrq_netascii;
   std::vector<char> rrq_mail;
+  std::vector<char> wrq_octet;
+  std::vector<char> wrq_no_permission;
   std::vector<char> ack;
 };
 

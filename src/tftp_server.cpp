@@ -479,10 +479,9 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
                                               std::ios::app | std::ios::binary);
   if (!state.file->is_open())
   {
-    spdlog::error(
-        "WRQ error from {}. Unable to open {} for writing.", // GCOVR_EXCL_LINE
-        addrstr, state.target.c_str());                      // GCOVR_EXCL_LINE
-    return error(ctx, socket, siter, ACCESS_VIOLATION);      // GCOVR_EXCL_LINE
+    spdlog::error("WRQ error from {}. Unable to open {} for writing.", addrstr,
+                  state.target.c_str());
+    return error(ctx, socket, siter, ACCESS_VIOLATION);
   }
 
   // Create and open a temporary file for writing.
@@ -492,9 +491,9 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
   state.file = std::make_shared<std::fstream>(
       tmp, std::ios::out | std::ios::binary | std::ios::trunc);
 
-  if (!state.file->is_open())
+  if (!state.file->is_open()) [[unlikely]]
   {
-    spdlog::error(
+    spdlog::error(                                           // GCOVR_EXCL_LINE
         "WRQ error from {}. Unable to open {} for writing.", // GCOVR_EXCL_LINE
         addrstr, tmp.c_str());                               // GCOVR_EXCL_LINE
     return error(ctx, socket, siter, ACCESS_VIOLATION);      // GCOVR_EXCL_LINE
@@ -520,7 +519,7 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   auto addrstr = to_str(addrbuf, key);
 
   auto &state = session.state;
-  if (state.opc == DATA)
+  if (state.opc == WRQ)
   {
     const auto *msg = reinterpret_cast<const messages::data *>(buf.data());
 
@@ -564,11 +563,12 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
 
       std::error_code err;
       std::filesystem::rename(tmp, target, err);
-      if (err != std::errc{})
+      if (err != std::errc{}) [[unlikely]]
       {
-        spdlog::error("WRQ failed for {} with error: {}.", addrstr,
-                      err.message());
-        return error(ctx, socket, siter, ACCESS_VIOLATION);
+        spdlog::error("WRQ failed for {} with error: {}.",  // GCOVR_EXCL_LINE
+                      addrstr,                              // GCOVR_EXCL_LINE
+                      err.message());                       // GCOVR_EXCL_LINE
+        return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
       }
 
       timer = ctx.timers.remove(timer);
