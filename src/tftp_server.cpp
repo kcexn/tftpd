@@ -309,6 +309,10 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
 
+  // Out-of-the-blue packet, already a session running on this socket.
+  if (session.state.opc != 0)
+    return reader(ctx, socket, rctx);
+
   spdlog::info("New RRQ from {}.", addrstr);
 
   auto state_ = parse_request(buf);
@@ -456,6 +460,10 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
+
+  // Out-of-the-blue packet, already a session running on this socket.
+  if (session.state.opc != 0)
+    return reader(ctx, socket, rctx);
 
   spdlog::info("New WRQ from {}.", addrstr);
 
