@@ -113,7 +113,6 @@ static auto set_loglevel(std::string_view value) -> int
   return -1;
 }
 
-// NOLINTNEXTLINE
 auto parse_args(int argc, char const *const *argv) -> std::optional<config>
 {
   using namespace tftp::detail;
@@ -129,47 +128,44 @@ auto parse_args(int argc, char const *const *argv) -> std::optional<config>
   for (const auto &option : argument_parser::parse(argc, argv))
   {
     const auto &[flag, value] = option;
-    if (!flag.empty()) // options with flags.
+    if (flag == "-h" || flag == "--help")
     {
-      if (flag == "-h" || flag == "--help")
-      {
-        std::cout << std::format(usage, progname.c_str());
-        return std::nullopt;
-      }
+      std::cout << std::format(usage, progname.c_str());
+      return std::nullopt;
+    }
 
-      if (flag == "-m" || flag == "--mail-prefix")
+    if (flag == "-m" || flag == "--mail-prefix")
+    {
+      auto path = std::filesystem::path(value);
+      if (setenv("TFTP_MAIL_PREFIX", path.c_str(), 1))
       {
-        auto path = std::filesystem::path(value);
-        if (setenv("TFTP_MAIL_PREFIX", path.c_str(), 1))
-        {
-          std::cerr << std::format(
-              "Unable to set TFTP_MAIL_PREFIX, error: {}",
-              std::error_code(errno, std::system_category()).message());
-          return error();
-        }
-      }
-      else if (flag == "-l" || flag == "--log-level")
-      {
-        if (!set_loglevel(value))
-          continue;
-
+        std::cerr << std::format(
+            "Unable to set TFTP_MAIL_PREFIX, error: {}",
+            std::error_code(errno, std::system_category()).message());
         return error();
       }
-      else if (flag == "-p" || flag == "--port")
+    }
+    else if (flag == "-l" || flag == "--log-level")
+    {
+      if (!set_loglevel(value))
+        continue;
+
+      return error();
+    }
+    else if (flag == "-p" || flag == "--port")
+    {
+      auto [ptr, err] =
+          std::from_chars(value.cbegin(), value.cend(), conf.port);
+      if (err != std::errc{})
       {
-        auto [ptr, err] =
-            std::from_chars(value.cbegin(), value.cend(), conf.port);
-        if (err != std::errc{})
-        {
-          std::cerr << std::format("Invalid port number: {}\n", value);
-          return error();
-        }
-      }
-      else
-      {
-        std::cerr << std::format("Unknown flag: {}\n", flag);
+        std::cerr << std::format("Invalid port number: {}\n", value);
         return error();
       }
+    }
+    else if (!flag.empty())
+    {
+      std::cerr << std::format("Unknown flag: {}\n", flag);
+      return error();
     }
   }
 
