@@ -676,19 +676,6 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   sessions_.erase(siter);
 }
 
-auto server::signal_handler(int signum) noexcept -> void
-{
-  // if (signum == async_context::terminate)
-  // {
-  //   for (const auto &[key, session]: sessions_)
-  //   {
-  //     ::shutdown(session.state.socket, SHUT_RD);
-  //   }
-  // }
-
-  Base::signal_handler(signum);
-}
-
 auto server::service(async_context &ctx, const socket_dialog &socket,
                      const std::shared_ptr<read_context> &rctx,
                      std::span<const std::byte> buf, iterator siter) -> void
