@@ -268,6 +268,7 @@ TEST_F(TftpServerTests, TestDuplicateRRQ)
 
   auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
   addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+
   auto len = io::sendmsg(
       sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
   ASSERT_EQ(len, rrq_octet.size());
@@ -287,7 +288,13 @@ TEST_F(TftpServerTests, TestDuplicateRRQ)
   auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
   ackmsg->block_num = datamsg->block_num;
 
-  sendmsg(sock, socket_message{.address = sockmsg.address, .buffers = ack}, 0);
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = ack}, 0);
+
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = ack}, 0);
 
   remove(test_file);
 }

@@ -87,8 +87,6 @@ protected:
     server_->start(addr_v4);
     server_->state.wait(PENDING);
     ASSERT_EQ(server_->state, STARTED);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   auto TearDown() noexcept -> void override
