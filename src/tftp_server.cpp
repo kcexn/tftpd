@@ -41,8 +41,8 @@ template <typename T> using socket_address = ::io::socket::socket_address<T>;
 using milliseconds = std::chrono::milliseconds;
 
 /** @brief Bounds checked implementation of strlen. */
-static inline auto strnlen(const char *str,
-                           std::size_t maxlen) noexcept -> std::size_t
+[[nodiscard]] static constexpr auto
+strnlen(const char *str, std::size_t maxlen) noexcept -> std::size_t
 {
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   const auto *found = std::find(str, str + maxlen, '\0');
@@ -50,7 +50,7 @@ static inline auto strnlen(const char *str,
 }
 
 /** @brief Converts the socket address to a string inside buf. */
-static inline auto
+[[nodiscard]] static inline auto
 to_str(std::span<char> buf,
        socket_address<sockaddr_in6> addr) noexcept -> std::string_view
 {
@@ -129,7 +129,7 @@ static inline auto to_mode(std::string_view mode) -> messages::mode_t
  * @param msg A span providing a view into the message.
  * @returns std::nullopt if the msg is invalid, a session::state_t otherwise.
  */
-static inline auto parse_request(std::span<const std::byte> msg)
+[[nodiscard]] static inline auto parse_request(std::span<const std::byte> msg)
     -> std::optional<messages::request>
 {
   using enum messages::error_t;
@@ -281,6 +281,9 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   using enum messages::error_t;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
+  if (msg.size() < sizeof(messages::ack))
+    return error(ctx, socket, siter, ILLEGAL_OPERATION);
+
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
 
@@ -311,7 +314,6 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
   using enum messages::opcode_t;
   using enum messages::error_t;
   using namespace detail;
-
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
   auto &[key, session] = *siter;
@@ -398,7 +400,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   // Reset the timer and prepare the next block.
   timer = ctx.timers.remove(timer);
-  block_num += 1;
+  block_num += 1; // block_num wraps back to 0.
 
   // Size the buffer for a complete TFTP DATA message and enough
   // extra to handle netascii processing.
@@ -517,6 +519,9 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   using enum messages::opcode_t;
   using enum messages::error_t;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
+
+  if (buf.size() < sizeof(messages::data))
+    return error(ctx, socket, siter, ILLEGAL_OPERATION);
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
@@ -669,7 +674,9 @@ auto server::service(async_context &ctx, const socket_dialog &socket,
   using enum messages::opcode_t;
   using enum messages::error_t;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  if (buf.size() < sizeof(messages::opcode_t))
+    return error(ctx, socket, siter, ILLEGAL_OPERATION);
+
   const auto *opcode = reinterpret_cast<const messages::opcode_t *>(buf.data());
   switch (ntohs(*opcode))
   {

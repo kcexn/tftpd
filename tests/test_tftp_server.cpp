@@ -219,6 +219,17 @@ TEST_F(TftpServerTests, TestIllegalOp)
   len = io::recvmsg(sock, sockmsg, 0);
   ASSERT_EQ(
       std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
+
+  ack.resize(1);
+  len = io::sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack},
+                    0);
+  ASSERT_EQ(len, ack.size());
+
+  sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                           .buffers = recvbuf};
+  len = io::recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(
+      std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
 TEST_F(TftpServerTests, TestMailRRQ)
