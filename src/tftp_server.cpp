@@ -267,7 +267,7 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
   {
     sender auto sendmsg = io::sendmsg(socket, msg, 0) |
                           then([](auto &&len) {}) |
-                          upon_error([](auto &&error) {});
+                          upon_error([](auto &&error) {}); // GCOVR_EXCL_LINE
     ctx.scope.spawn(std::move(sendmsg));
   }
 
@@ -442,13 +442,12 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   timer = ctx.timers.add(
       2 * avg_rtt,
-      [&, siter, sock = socket, retries = 0](auto timer_id) mutable {
+      [&, siter, socket, retries = 0](auto timer_id) mutable {
         constexpr auto MAX_RETRIES = 5;
-        if (retries++ < MAX_RETRIES)
-          return send(ctx, sock, siter);
+        if (retries++ >= MAX_RETRIES)
+          return error(ctx, socket, siter, TIMED_OUT);
 
-        error(ctx, sock, siter, TIMED_OUT);
-        sock = socket_dialog{};
+        send(ctx, socket, siter);
       },
       2 * avg_rtt);
 }
@@ -630,16 +629,11 @@ auto server::get_next(async_context &ctx, const socket_dialog &socket,
 
   // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
   timer = ctx.timers.remove(timer);
-  timer = ctx.timers.add(5 * avg_rtt, [&, siter, sock = socket](auto) mutable {
+  timer = ctx.timers.add(5 * avg_rtt, [&, siter, socket](auto) {
     if (file->is_open())
-    {
-      error(ctx, sock, siter, TIMED_OUT);
-    }
-    else
-    {
-      cleanup(ctx, sock, siter);
-    }
-    sock = socket_dialog{};
+      return error(ctx, socket, siter, TIMED_OUT);
+
+    cleanup(ctx, socket, siter);
   });
   // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 }
