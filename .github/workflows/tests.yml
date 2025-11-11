@@ -75,7 +75,7 @@ jobs:
             -DCPM_SOURCE_CACHE='~/.cache/CPM' \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DECHO_BUILD_DOCS=OFF
+            -DTFTP_BUILD_DOCS=OFF
 
       - name: Build with tests
         run: cmake --build --preset debug
