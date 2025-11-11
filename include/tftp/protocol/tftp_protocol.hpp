@@ -29,13 +29,25 @@
 /** @brief TFTP related utilities. */
 namespace tftp {
 // NOLINTBEGIN(performance-enum-size)
-/** @brief A struct to contain TFTP message marshalling logic. */
+/** @brief A struct to contain TFTP message marshalling logic and protocol
+ * definitions. */
 struct messages {
-  /** @brief Protocol defined operations. */
+  /**
+   * @brief Protocol defined operations (opcodes).
+   * These are the valid TFTP operation codes as defined in RFC 1350.
+   */
   enum opcode_t : std::uint16_t { RRQ = 1, WRQ, DATA, ACK, ERROR };
-  /** @brief Protocol defined modes. */
+
+  /**
+   * @brief Protocol defined transfer modes.
+   * These are the supported TFTP transfer modes as defined in RFC 1350.
+   */
   enum mode_t : std::uint8_t { NETASCII = 1, OCTET, MAIL };
-  /** @brief Protocol errors. */
+
+  /**
+   * @brief Protocol defined error codes.
+   * These are the standard TFTP error codes as defined in RFC 1350.
+   */
   enum error_t : std::uint16_t {
     NOT_DEFINED = 0,
     FILE_NOT_FOUND,
@@ -49,30 +61,51 @@ struct messages {
     TIMED_OUT
   };
 
-  /** @brief Read and write request messages. */
+  /**
+   * @brief Read and write request message structure.
+   * Represents the structure of RRQ and WRQ packets.
+   */
   struct request {
+    /** @brief Operation Code (RRQ or WRQ). */
     uint16_t opc;
+    /** @brief Transfer mode (NETASCII, OCTET, or MAIL). */
     uint16_t mode;
+    /** @brief Null-terminated filename. */
     const char *filename;
   };
 
-  /** @brief error message. */
+  /**
+   * @brief Error message structure.
+   * Represents the structure of ERROR packets.
+   */
   struct error {
+    /** @brief Operation code (ERROR) */
     uint16_t opc;
+    /** @brief Error code from error_t enum. */
     uint16_t error;
   };
 
-  /** @brief Data/ack message. */
+  /**
+   * @brief Data message structure.
+   * Represents the structure of DATA packets.
+   */
   struct data {
+    /** @brief Operation code (DATA). */
     uint16_t opc;
+    /** @brief Block number (starts at 1). */
     uint16_t block_num;
   };
-  /** @brief Ack message. */
+
+  /**
+   * @brief Acknowledgment message structure.
+   * ACK packets have the same structure as DATA packets (opcode + block
+   * number).
+   */
   using ack = data;
 
-  /** @brief The maximum data size of a message. */
+  /** @brief The maximum data payload size in bytes (512 bytes per RFC 1350). */
   static constexpr auto DATALEN = 512UL;
-  /** @brief The maximum frame size for a data message. */
+  /** @brief The maximum total size of a DATA message (header + payload). */
   static constexpr auto DATAMSG_MAXLEN = sizeof(data) + DATALEN;
 };
 // NOLINTEND(performance-enum-size)
@@ -115,6 +148,15 @@ struct errors {
   }
   // NOLINTEND
 
+  /**
+   * @brief Creates a "Not implemented" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code NOT_DEFINED
+   * and the message "Not implemented." This is used for features or operations
+   * that are not yet implemented in the TFTP server.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto not_implemented() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -122,6 +164,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates a "Timed Out" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code NOT_DEFINED
+   * and the message "Timed Out". This is used when a connection or operation
+   * times out.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto timed_out() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -129,6 +180,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates an "Access violation" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code ACCESS_VIOLATION
+   * and the message "Access violation." This is used when a client attempts
+   * to access a file or perform an operation they don't have permission for.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto access_violation() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -136,6 +196,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates a "File not found" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code FILE_NOT_FOUND
+   * and the message "File not found." This is used when a requested file
+   * does not exist on the server.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto file_not_found() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -143,6 +212,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates a "Disk full" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code DISK_FULL
+   * and the message "No space available." This is used when the server's
+   * disk is full or an allocation limit has been exceeded.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto disk_full() noexcept -> decltype(auto) // GCOVR_EXCL_LINE
   {
     using enum messages::error_t;
@@ -150,6 +228,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf); // GCOVR_EXCL_LINE
   }
 
+  /**
+   * @brief Creates an "Unknown TID" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code UNKNOWN_TID
+   * and the message "Unknown TID." This is used when a packet is received
+   * from an unknown transfer ID (port number).
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto unknown_tid() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -157,6 +244,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates a "No such user" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code NO_SUCH_USER
+   * and the message "No such user." This is used in MAIL mode when the
+   * specified user does not exist.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto no_such_user() noexcept -> decltype(auto)
   {
     using enum messages::error_t;
@@ -164,6 +260,15 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  /**
+   * @brief Creates an "Illegal operation" error packet.
+   *
+   * Returns a pre-formatted TFTP error packet with error code ILLEGAL_OPERATION
+   * and the message "Illegal operation." This is used when a client attempts
+   * an invalid TFTP operation.
+   *
+   * @return Const reference to a static buffer containing the error packet.
+   */
   static auto illegal_operation() noexcept -> decltype(auto)
   {
     using enum messages::error_t;

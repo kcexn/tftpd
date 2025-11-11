@@ -81,6 +81,7 @@ struct session {
     std::uint8_t mode = 0;
   };
 
+  /** @brief The session state. */
   state_t state;
 };
 
