@@ -42,6 +42,18 @@ auto temp_directory(std::error_code &err) noexcept
   return path;
 }
 
+auto mail_directory() noexcept -> const std::filesystem::path &
+{
+  static const auto mail_path = []() noexcept {
+    if (const char *path = std::getenv("TFTP_MAIL_PREFIX"))
+      return std::filesystem::path(path);
+
+    return std::filesystem::path("/var/spool/mail");
+  }();
+
+  return mail_path;
+}
+
 auto tmpname() -> std::filesystem::path
 {
   std::error_code err;

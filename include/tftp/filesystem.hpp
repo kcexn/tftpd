@@ -32,6 +32,8 @@ auto count() noexcept -> std::atomic<std::uint16_t> &;
 /** @brief Returns the system defined temporary files directory. */
 auto temp_directory(std::error_code &err) noexcept
     -> const std::filesystem::path &;
+/** @brief Returns the application mail directory. */
+auto mail_directory() noexcept -> const std::filesystem::path &;
 /** @brief Returns the next available temporary file. */
 auto tmpname() -> std::filesystem::path;
 /** @brief Touches a file. */

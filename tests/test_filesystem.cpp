@@ -17,6 +17,7 @@
 // NOLINTBEGIN
 #include "tftp/filesystem.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -24,9 +25,9 @@
 
 using namespace tftp::filesystem;
 
-class TestFileManager : public ::testing::Test {};
+class TestFileSystem : public ::testing::Test {};
 
-TEST_F(TestFileManager, ClearsErrorCode)
+TEST_F(TestFileSystem, ClearsErrorCode)
 {
   std::error_code err =
       std::make_error_code(std::errc::no_such_file_or_directory);
@@ -34,7 +35,7 @@ TEST_F(TestFileManager, ClearsErrorCode)
   EXPECT_FALSE(err);
 }
 
-TEST_F(TestFileManager, ReturnsSamePath)
+TEST_F(TestFileSystem, ReturnsSamePath)
 {
   std::error_code err;
   const auto &path1 = temp_directory(err);
@@ -43,7 +44,7 @@ TEST_F(TestFileManager, ReturnsSamePath)
   EXPECT_EQ(&path1, &path2);
 }
 
-TEST_F(TestFileManager, CountReturnsSameReference)
+TEST_F(TestFileSystem, CountReturnsSameReference)
 {
   auto &count1 = count();
   auto &count2 = count();
@@ -51,7 +52,7 @@ TEST_F(TestFileManager, CountReturnsSameReference)
   EXPECT_EQ(&count1, &count2);
 }
 
-TEST_F(TestFileManager, NextReturnsTempFile)
+TEST_F(TestFileSystem, NextReturnsTempFile)
 {
   auto err = std::error_code();
   const auto &temp_dir = temp_directory(err);
@@ -62,7 +63,7 @@ TEST_F(TestFileManager, NextReturnsTempFile)
   EXPECT_EQ(path.parent_path(), temp_dir);
 }
 
-TEST_F(TestFileManager, NextIncrementsCounter)
+TEST_F(TestFileSystem, NextIncrementsCounter)
 {
   const auto initial_count = count().load();
   const auto path1 = tmpname();
@@ -75,7 +76,7 @@ TEST_F(TestFileManager, NextIncrementsCounter)
   EXPECT_EQ(count().load(), initial_count + 3);
 }
 
-TEST_F(TestFileManager, MakeTmpCopiesFile)
+TEST_F(TestFileSystem, MakeTmpCopiesFile)
 {
   std::error_code err;
   const auto from_path = tmpname();
@@ -95,7 +96,7 @@ TEST_F(TestFileManager, MakeTmpCopiesFile)
   std::filesystem::remove(to_path);
 }
 
-TEST_F(TestFileManager, MakeTmpReturnsEmptyPathOnError)
+TEST_F(TestFileSystem, MakeTmpReturnsEmptyPathOnError)
 {
   std::error_code err;
   const auto nonexistent_path = tmpname();
@@ -108,7 +109,7 @@ TEST_F(TestFileManager, MakeTmpReturnsEmptyPathOnError)
   EXPECT_TRUE(tmp.empty());
 }
 
-TEST_F(TestFileManager, MakeTmpHandlesOpenFailureAfterCopy)
+TEST_F(TestFileSystem, MakeTmpHandlesOpenFailureAfterCopy)
 {
   std::error_code err;
 
@@ -133,7 +134,7 @@ TEST_F(TestFileManager, MakeTmpHandlesOpenFailureAfterCopy)
   std::filesystem::remove(from_path);
 }
 
-TEST_F(TestFileManager, TouchCreatesNewFile)
+TEST_F(TestFileSystem, TouchCreatesNewFile)
 {
   const auto path = tmpname();
   EXPECT_FALSE(std::filesystem::exists(path));
@@ -146,7 +147,7 @@ TEST_F(TestFileManager, TouchCreatesNewFile)
   std::filesystem::remove(path);
 }
 
-TEST_F(TestFileManager, TouchSucceedsOnExistingFile)
+TEST_F(TestFileSystem, TouchSucceedsOnExistingFile)
 {
   const auto path = tmpname();
   std::ofstream(path) << "existing content";
@@ -157,5 +158,21 @@ TEST_F(TestFileManager, TouchSucceedsOnExistingFile)
   EXPECT_TRUE(std::filesystem::exists(path));
 
   std::filesystem::remove(path);
+}
+
+TEST_F(TestFileSystem, MailDirectoryReturnsSameReference)
+{
+  const auto &path1 = mail_directory();
+  const auto &path2 = mail_directory();
+
+  EXPECT_EQ(&path1, &path2);
+}
+
+TEST_F(TestFileSystem, MailDirectoryReturnsValidPath)
+{
+  const auto &path = mail_directory();
+
+  EXPECT_FALSE(path.empty());
+  EXPECT_TRUE(path.is_absolute());
 }
 // NOLINTEND

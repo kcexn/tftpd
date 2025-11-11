@@ -97,7 +97,7 @@ protected:
     ASSERT_EQ(server_->state, STOPPED);
     server_.reset();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    std::filesystem::remove(test_file);
   }
 
   std::mutex mtx;

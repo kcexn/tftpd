@@ -129,8 +129,8 @@ static inline auto to_mode(std::string_view mode) -> messages::mode_t
  * @param msg A span providing a view into the message.
  * @returns std::nullopt if the msg is invalid, a session::state_t otherwise.
  */
-static inline auto
-parse_request(std::span<const std::byte> msg) -> std::optional<messages::request>
+static inline auto parse_request(std::span<const std::byte> msg)
+    -> std::optional<messages::request>
 {
   using enum messages::error_t;
   using enum messages::opcode_t;
