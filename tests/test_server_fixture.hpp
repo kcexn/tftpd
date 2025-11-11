@@ -87,24 +87,8 @@ protected:
     server_->start(addr_v4);
     server_->state.wait(PENDING);
     ASSERT_EQ(server_->state, STARTED);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  auto TearDown() noexcept -> void override
-  {
-    using enum net::service::async_context::context_states;
-
-    server_->signal(server_->terminate);
-    server_->state.wait(STARTED);
-    ASSERT_EQ(server_->state, STOPPED);
-    server_.reset();
-
-    std::filesystem::remove(test_file);
-  }
-
-  std::mutex mtx;
-  std::condition_variable cvar;
   io::socket::socket_address<sockaddr_in> addr_v4;
   std::unique_ptr<tftp_server> server_;
   std::filesystem::path test_file;

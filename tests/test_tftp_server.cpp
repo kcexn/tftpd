@@ -459,6 +459,7 @@ TEST_F(TftpServerTests, TestWRQDuplicateData)
   using namespace io::socket;
   using namespace std::filesystem;
   using namespace io;
+  using socket_message = socket_message<sockaddr_in6>;
 
   std::vector<char> test_data(511);
 
@@ -483,11 +484,10 @@ TEST_F(TftpServerTests, TestWRQDuplicateData)
   auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
   ASSERT_EQ(ntohs(ackmsg->block_num), 0);
 
-  auto block_num = ntohs(ackmsg->block_num);
-  block_num++;
+  auto block_num = ntohs(ackmsg->block_num) + 1;
 
   auto msg = std::vector<char>(sizeof(messages::data));
-  msg.reserve(sizeof(messages::data) + test_data.size());
+  msg.reserve(msg.size() + test_data.size());
   auto *data = reinterpret_cast<messages::data *>(msg.data());
   data->opc = htons(messages::DATA);
   data->block_num = htons(block_num);
@@ -500,12 +500,12 @@ TEST_F(TftpServerTests, TestWRQDuplicateData)
   len = recvmsg(sock, sockmsg, 0);
   ASSERT_EQ(len, ack.size());
 
-  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
-  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
-
   len = sendmsg(sock,
                 socket_message{.address = sockmsg.address, .buffers = msg}, 0);
   ASSERT_EQ(len, msg.size());
+
+  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
 
   len = recvmsg(sock, sockmsg, 0);
   ASSERT_EQ(len, ack.size());
@@ -524,6 +524,29 @@ TEST_F(TftpServerTests, TestWRQDuplicateData)
   }
 
   remove(test_file);
+}
+
+TEST_F(TftpServerTests, TestWRQTimeout)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+  using socket_message = socket_message<sockaddr_in6>;
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_octet}, 0);
+  ASSERT_EQ(len, wrq_octet.size());
+
+  auto buf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = buf};
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, sizeof(messages::ack));
+
+  len = recvmsg(sock, sockmsg, 0);
+  EXPECT_EQ(std::memcmp(buf.data(), errors::timed_out().data(), len), 0);
 }
 
 TEST_F(TftpServerTests, TestInvalidWRQ)

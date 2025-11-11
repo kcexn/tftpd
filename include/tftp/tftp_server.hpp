@@ -54,6 +54,8 @@ public:
   explicit server(socket_address<T> address) noexcept : Base(address)
   {}
 
+  auto signal_handler(int signum) noexcept -> void;
+
   /**
    * @brief Services the incoming socket_message.
    * @param ctx The asynchronous context of the message.

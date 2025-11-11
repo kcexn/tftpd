@@ -84,7 +84,7 @@ jobs:
         run: ccache --show-stats
 
       - name: Run tests
-        run: ctest --preset debug --output-on-failure --jobs=1
+        run: ctest --preset debug --output-on-failure
 
       - name: Generate coverage XML
         if: github.ref == 'refs/heads/main'

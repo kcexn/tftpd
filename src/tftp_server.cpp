@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cassert>
 #include <filesystem>
+#include <iostream>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -441,12 +442,13 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   timer = ctx.timers.add(
       2 * avg_rtt,
-      [&, siter, retries = 0](auto timer_id) mutable {
+      [&, siter, sock = socket, retries = 0](auto timer_id) mutable {
         constexpr auto MAX_RETRIES = 5;
-        if (retries++ >= MAX_RETRIES)
-          return error(ctx, socket, siter, TIMED_OUT);
+        if (retries++ < MAX_RETRIES)
+          return send(ctx, sock, siter);
 
-        send(ctx, socket, siter);
+        error(ctx, sock, siter, TIMED_OUT);
+        sock = socket_dialog{};
       },
       2 * avg_rtt);
 }
@@ -616,8 +618,7 @@ auto server::get_next(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   auto &timer = session.state.timer;
   auto &[start_time, avg_rtt] = session.state.statistics;
-
-  timer = ctx.timers.remove(timer);
+  auto &file = session.state.file;
 
   ack(ctx, socket, siter);
 
@@ -628,17 +629,25 @@ auto server::get_next(async_context &ctx, const socket_dialog &socket,
   start_time = now;
 
   // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
-  timer = ctx.timers.add(
-      5 * avg_rtt,
-      [&, siter](auto) mutable { return error(ctx, socket, siter, TIMED_OUT); },
-      5 * avg_rtt);
+  timer = ctx.timers.remove(timer);
+  timer = ctx.timers.add(5 * avg_rtt, [&, siter, sock = socket](auto) mutable {
+    if (file->is_open())
+    {
+      error(ctx, sock, siter, TIMED_OUT);
+    }
+    else
+    {
+      cleanup(ctx, sock, siter);
+    }
+    sock = socket_dialog{};
+  });
   // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 }
 
 auto server::cleanup(async_context &ctx, const socket_dialog &socket,
                      iterator siter) -> void
 {
-  std::error_code err;
+  auto err = std::error_code();
   auto &[key, session] = *siter;
   auto &timer = session.state.timer;
   auto &file = session.state.file;
@@ -651,7 +660,7 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   file.reset();
 
   // Delete any temporary files.
-  if (!tmp.empty() && !remove(tmp, err)) [[unlikely]]
+  if (!tmp.empty() && !remove(tmp, err) && err) [[unlikely]]
   {
     spdlog::warn(                                            // GCOVR_EXCL_LINE
         "Failed to delete temporary file {} with error: {}", // GCOVR_EXCL_LINE
@@ -665,6 +674,19 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
 
   // Cleanup the rest of the session.
   sessions_.erase(siter);
+}
+
+auto server::signal_handler(int signum) noexcept -> void
+{
+  // if (signum == async_context::terminate)
+  // {
+  //   for (const auto &[key, session]: sessions_)
+  //   {
+  //     ::shutdown(session.state.socket, SHUT_RD);
+  //   }
+  // }
+
+  Base::signal_handler(signum);
 }
 
 auto server::service(async_context &ctx, const socket_dialog &socket,

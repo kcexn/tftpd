@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/kcexn/rfc862-echo/actions/workflows/tests.yml/badge.svg)](https://github.com/kcexn/rfc862-echo/actions/workflows/tests.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/34e5299bc2954055a5a466b3d0e03249)](https://app.codacy.com/gh/kcexn/tftpd/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/575775ae38044852bbc6eeefae1c83d5)](https://app.codacy.com/gh/kcexn/rfc862-echo/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
+[![Codacy Badge](https://app.codacy.com/project/badge/Coverage/34e5299bc2954055a5a466b3d0e03249)](https://app.codacy.com/gh/kcexn/tftpd/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
 
 A modern TFTP (Trivial File Transfer Protocol) server written in C++20. Implements [RFC 1350](https://www.rfc-editor.org/rfc/rfc1350).
 
