@@ -122,7 +122,7 @@ struct errors {
    * network byte order.
    */
   template <std::size_t N>
-  static constexpr auto msg(const messages::error_t error,
+  static constexpr auto msg(const std::uint16_t error,
                             const char (&str)[N]) noexcept
   {
     using enum messages::opcode_t;

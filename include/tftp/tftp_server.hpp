@@ -81,47 +81,106 @@ private:
   sessions_t sessions_;
 
   // Application Logic.
-  /** @brief Sends an error notice to client and closes the connection. */
+  /**
+   * @brief Sends an error notice to client and closes the connection.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param siter An iterator pointing to the session.
+   * @param error The TFTP error code to send.
+   */
   auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
              std::uint16_t error) -> void;
 
-  /** @brief Services a read request. */
+  /**
+   * @brief Services a read request.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param rctx The read context that manages the read buffer lifetime.
+   * @param buf The data buffer containing the RRQ packet.
+   * @param siter An iterator pointing to the session.
+   */
   auto rrq(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
            std::span<const std::byte> buf, iterator siter) -> void;
 
-  /** @brief Services an ack. */
+  /**
+   * @brief Services an ack.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param rctx The read context that manages the read buffer lifetime.
+   * @param msg The data buffer containing the ACK packet.
+   * @param siter An iterator pointing to the session.
+   */
   auto ack(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
            std::span<const std::byte> msg, iterator siter) -> void;
 
-  /** @brief Services a write request. */
+  /**
+   * @brief Services a write request.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param rctx The read context that manages the read buffer lifetime.
+   * @param buf The data buffer containing the WRQ packet.
+   * @param siter An iterator pointing to the session.
+   */
   auto wrq(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
            std::span<const std::byte> buf, iterator siter) -> void;
 
-  /** @brief Services a data packet. */
+  /**
+   * @brief Services a data packet.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param rctx The read context that manages the read buffer lifetime.
+   * @param buf The data buffer containing the DATA packet.
+   * @param siter An iterator pointing to the session.
+   */
   auto data(async_context &ctx, const socket_dialog &socket,
             const std::shared_ptr<read_context> &rctx,
             std::span<const std::byte> buf, iterator siter) -> void;
 
-  /** @brief Cleans-up the session from the server. */
+  /**
+   * @brief Cleans-up the session from the server.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket that the message was read from.
+   * @param siter An iterator pointing to the session to clean up.
+   */
   auto cleanup(async_context &ctx, const socket_dialog &socket,
                iterator siter) -> void;
 
-  /** @brief Sends the current block of data to the client.. */
+  /**
+   * @brief Sends the current block of data to the client.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket to send data on.
+   * @param siter An iterator pointing to the session.
+   */
   static auto send(async_context &ctx, const socket_dialog &socket,
                    iterator siter) -> void;
 
-  /** @brief Prepares and sends the next block of a file to the client. */
+  /**
+   * @brief Prepares and sends the next block of a file to the client.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket to send data on.
+   * @param siter An iterator pointing to the session.
+   */
   auto send_next(async_context &ctx, const socket_dialog &socket,
                  iterator siter) -> void;
 
-  /** @brief Acks the current block of data to the client. */
+  /**
+   * @brief Acks the current block of data to the client.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket to send the ACK on.
+   * @param siter An iterator pointing to the session.
+   */
   static auto ack(async_context &ctx, const socket_dialog &socket,
                   iterator siter) -> void;
 
-  /** @brief Prepares to receive the next block of a file from the client. */
+  /**
+   * @brief Prepares to receive the next block of a file from the client.
+   * @param ctx The asynchronous context of the message.
+   * @param socket The socket to receive data on.
+   * @param siter An iterator pointing to the session.
+   */
   auto get_next(async_context &ctx, const socket_dialog &socket,
                 iterator siter) -> void;
 };

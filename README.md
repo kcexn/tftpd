@@ -29,6 +29,50 @@ cmake --preset release
 cmake --build build/release
 ```
 
+### Installing
+
+Install the server to your system (default prefix: `/usr/local`):
+
+```bash
+# Build the release version first
+cmake --preset release
+cmake --build build/release
+
+# Install (may require sudo)
+sudo cmake --install build/release
+```
+
+This installs the `tftpd` executable to `/usr/local/bin/` by default.
+
+#### Custom Install Location
+
+To install to a custom location, set the `CMAKE_INSTALL_PREFIX`:
+
+```bash
+# Configure with custom prefix
+cmake --preset release -DCMAKE_INSTALL_PREFIX=/opt/tftp
+cmake --build build/release
+
+# Install to custom location
+sudo cmake --install build/release
+```
+
+### Uninstalling
+
+To remove the installed files:
+
+```bash
+# From your build directory
+cat build/release/install_manifest.txt | sudo xargs rm
+```
+
+Alternatively, if you no longer have the build directory:
+
+```bash
+# Manual removal (adjust paths if using custom prefix)
+sudo rm /usr/local/bin/tftpd
+```
+
 ### Running
 
 ```bash
@@ -110,12 +154,6 @@ Comprehensive error reporting with standard TFTP error codes:
 - C++20 compiler (GCC 11+, Clang 14+)
 - CMake 3.28+
 - Ninja build system (recommended)
-
-## Installation
-
-```bash
-cmake --build build/release --target install
-```
 
 ## License
 
