@@ -52,8 +52,8 @@ struct messages {
   /** @brief Read and write request messages. */
   struct request {
     uint16_t opc;
-    const char *filename;
     uint16_t mode;
+    const char *filename;
   };
 
   /** @brief error message. */

@@ -130,18 +130,18 @@ static inline auto to_mode(std::string_view mode) -> messages::mode_t
  * @returns std::nullopt if the msg is invalid, a session::state_t otherwise.
  */
 static inline auto
-parse_request(std::span<const std::byte> msg) -> std::optional<session::state_t>
+parse_request(std::span<const std::byte> msg) -> std::optional<messages::request>
 {
   using enum messages::error_t;
   using enum messages::opcode_t;
 
-  auto state = session::state_t();
+  auto req = messages::request{};
   const auto *buf = msg.data();
   const auto *end = msg.data() + msg.size();
 
   const auto *opcode = reinterpret_cast<const messages::opcode_t *>(buf);
-  state.opc = static_cast<messages::opcode_t>(ntohs(*opcode));
-  if (state.opc != RRQ && state.opc != WRQ)
+  req.opc = static_cast<messages::opcode_t>(ntohs(*opcode));
+  if (req.opc != RRQ && req.opc != WRQ)
     return std::nullopt;
 
   buf += sizeof(messages::opcode_t);
@@ -150,18 +150,18 @@ parse_request(std::span<const std::byte> msg) -> std::optional<session::state_t>
   if (filepath.empty())
     return std::nullopt;
 
-  state.target = filepath;
+  req.filename = filepath.data();
   buf += filepath.size() + 1;
 
   auto mode = to_view(reinterpret_cast<const char *>(buf), end - buf);
   if (mode.empty())
     return std::nullopt;
 
-  state.mode = to_mode(mode);
-  if (state.mode == 0)
+  req.mode = to_mode(mode);
+  if (req.mode == 0)
     return std::nullopt;
 
-  return state;
+  return req;
 }
 
 static inline auto
@@ -312,21 +312,25 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
+  auto &state = session.state;
 
   // Out-of-the-blue packet, already a session running on this socket.
-  if (session.state.opc != 0)
+  if (state.opc != 0)
     return reader(ctx, socket, rctx);
 
   spdlog::info("New RRQ from {}.", addrstr);
 
-  auto state_ = parse_request(buf);
-  if (!state_)
+  auto request = parse_request(buf);
+  if (!request)
   {
     spdlog::error("Invalid RRQ from {}.", addrstr);
     return error(ctx, socket, siter, NOT_DEFINED);
   }
 
-  auto &state = session.state = *state_;
+  state.opc = request->opc;
+  state.target = request->filename;
+  state.mode = request->mode;
+
   assert(state.opc == RRQ && "Operation MUST be a read request.");
   if (state.mode == messages::MAIL)
   {
@@ -392,8 +396,9 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
   timer = ctx.timers.remove(timer);
   block_num += 1;
 
-  // Size the buffer for a complete TFTP DATA message.
-  buffer.reserve(messages::DATAMSG_MAXLEN);
+  // Size the buffer for a complete TFTP DATA message and enough
+  // extra to handle netascii processing.
+  buffer.reserve(messages::DATAMSG_MAXLEN + messages::DATALEN);
   if (buffer.size() < sizeof(messages::data))
     buffer.resize(sizeof(messages::data));
 
@@ -452,21 +457,25 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
+  auto &state = session.state;
 
   // Out-of-the-blue packet, already a session running on this socket.
-  if (session.state.opc != 0)
+  if (state.opc != 0)
     return reader(ctx, socket, rctx);
 
   spdlog::info("New WRQ from {}.", addrstr);
 
-  auto state_ = parse_request(buf);
-  if (!state_)
+  auto request = parse_request(buf);
+  if (!request)
   {
     spdlog::error("Invalid WRQ from {}.", addrstr);
     return error(ctx, socket, siter, NOT_DEFINED);
   }
 
-  auto &state = session.state = *state_;
+  state.opc = request->opc;
+  state.target = request->filename;
+  state.mode = request->mode;
+
   assert(state.opc == WRQ && "Operation MUST be a write request.");
   if (state.mode == messages::MAIL)
   {

@@ -96,6 +96,8 @@ protected:
     server_->state.wait(STARTED);
     ASSERT_EQ(server_->state, STOPPED);
     server_.reset();
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   std::mutex mtx;
