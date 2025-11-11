@@ -143,11 +143,11 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
-  static auto disk_full() noexcept -> decltype(auto)
+  static auto disk_full() noexcept -> decltype(auto) // GCOVR_EXCL_LINE
   {
     using enum messages::error_t;
     static constexpr auto buf = msg(DISK_FULL, "No space available.");
-    return static_cast<const decltype(buf) &>(buf);
+    return static_cast<const decltype(buf) &>(buf); // GCOVR_EXCL_LINE
   }
 
   static auto unknown_tid() noexcept -> decltype(auto)

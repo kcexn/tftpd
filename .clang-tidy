@@ -1,6 +1,7 @@
 Checks: >
   -*,
   bugprone-*,
+  -bugprone-assignment-in-if-condition,
   cert-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-narrowing-conversions,

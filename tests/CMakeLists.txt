@@ -3,6 +3,7 @@ include(GoogleTest)
 set(TEST_NAMES
   test_argument_parser
   test_endian
+  test_filesystem
   test_generator
   test_tftp_server_static
   test_tftp_server

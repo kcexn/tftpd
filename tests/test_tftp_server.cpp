@@ -557,6 +557,78 @@ TEST_F(TftpServerTests, TestWRQNotPermitted)
             0);
 }
 
+TEST_F(TftpServerTests, TestWRQMail)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_mail}, 0);
+  ASSERT_EQ(len, wrq_mail.size());
+
+  auto recvbuf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = recvbuf};
+  len = recvmsg(sock, sockmsg, 0);
+
+  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::not_implemented().data(), len),
+            0);
+}
+
+TEST_F(TftpServerTests, TestWRQUnknownTID)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+
+  std::vector<char> test_data(256);
+
+  {
+    auto inf = std::ifstream("/dev/random");
+    inf.read(test_data.data(), test_data.size());
+  }
+
+  // First, establish an RRQ session to get a valid TID
+  {
+    auto outf = std::ofstream(test_file);
+    outf.write(test_data.data(), test_data.size());
+  }
+
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
+  ASSERT_EQ(len, rrq_octet.size());
+
+  auto recvbuf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = recvbuf};
+  len = recvmsg(sock, sockmsg, 0);
+
+  // Get the session address (TID)
+  auto session_address = *sockmsg.address;
+
+  // Now send a DATA packet to this RRQ session (should fail with UNKNOWN_TID)
+  auto msg = std::vector<char>(sizeof(messages::data));
+  msg.reserve(sizeof(messages::data) + test_data.size());
+  auto *data = reinterpret_cast<messages::data *>(msg.data());
+  data->opc = htons(messages::DATA);
+  data->block_num = htons(1);
+
+  msg.insert(msg.end(), test_data.begin(), test_data.end());
+  len = sendmsg(
+      sock, socket_message{.address = {session_address}, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  len = recvmsg(sock, sockmsg, 0);
+  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::unknown_tid().data(), len), 0);
+
+  remove(test_file);
+}
+
 INSTANTIATE_TEST_SUITE_P(TftpRRQTests, TftpServerRRQOctetTests,
                          ::testing::Values(511, 512, 513, 1023, 1024, 1025));
 

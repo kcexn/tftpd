@@ -1,6 +1,7 @@
 set(tftplib_SOURCES
   argument_parser.cpp
   tftp_server.cpp
+  filesystem.cpp
 )
 add_library(
   tftplib

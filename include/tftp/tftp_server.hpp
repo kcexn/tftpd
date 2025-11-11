@@ -77,8 +77,6 @@ public:
                   std::span<const std::byte> buf) -> void;
 
 private:
-  /** @brief An atomic counter for constructing temporary files. */
-  std::atomic<std::uint16_t> count_;
   /** @brief The TFTP sessions. */
   sessions_t sessions_;
 

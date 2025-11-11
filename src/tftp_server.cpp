@@ -18,6 +18,7 @@
  * @brief This file defines the TFTP server.
  */
 #include "tftp/tftp_server.hpp"
+#include "tftp/filesystem.hpp"
 #include "tftp/protocol/tftp_protocol.hpp"
 
 #include <net/timers/timers.hpp>
@@ -236,9 +237,10 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
       msg.buffers = errors::file_not_found();
       break;
 
-    case DISK_FULL:
-      msg.buffers = errors::disk_full();
-      break;
+    // Integration tests for a disk_full condition are a huge pain.
+    case DISK_FULL:                      // GCOVR_EXCL_LINE
+      msg.buffers = errors::disk_full(); // GCOVR_EXCL_LINE
+      break;                             // GCOVR_EXCL_LINE
 
     case UNKNOWN_TID:
       msg.buffers = errors::unknown_tid();
@@ -304,6 +306,8 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 {
   using enum messages::opcode_t;
   using enum messages::error_t;
+  using namespace detail;
+
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
   auto &[key, session] = *siter;
@@ -330,30 +334,17 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
     return error(ctx, socket, siter, ILLEGAL_OPERATION);
   }
 
-  // Copy to a temporary file.
-  auto tmp = (std::filesystem::temp_directory_path() / "tftp.")
-                 .concat(std::format("{:05d}", count_++));
-
   auto err = std::error_code();
-  if (!std::filesystem::copy_file(state.target, tmp, err))
+  state.file = filesystem::tmpfile_from(
+      state.target, std::ios::in | std::ios::binary, state.tmp, err);
+  if (!state.file)
   {
-    spdlog::error("Copying {} to {} failed with error: {}",
-                  state.target.c_str(), tmp.c_str(), err.message());
+    spdlog::error("Copying {} failed with error: {}", state.target.c_str(),
+                  err.message());
     if (err == std::errc::no_such_file_or_directory)
       return error(ctx, socket, siter, FILE_NOT_FOUND);
 
     return error(ctx, socket, siter, ACCESS_VIOLATION);
-  }
-
-  // Open the temporary file for sending.
-  state.tmp = tmp;
-  state.file = std::make_shared<std::fstream>(state.tmp,
-                                              std::ios::in | std::ios::binary);
-  if (!state.file->is_open()) [[unlikely]]
-  {
-    spdlog::error("Unable to open the temporary file: {}", // GCOVR_EXCL_LINE
-                  state.tmp.c_str());                      // GCOVR_EXCL_LINE
-    return error(ctx, socket, siter, ACCESS_VIOLATION);    // GCOVR_EXCL_LINE
   }
 
   state.socket = static_cast<session::socket_type>(*socket.socket);
@@ -439,7 +430,7 @@ auto server::send_next(async_context &ctx, const socket_dialog &socket,
 
   timer = ctx.timers.add(
       2 * avg_rtt,
-      [&, siter, retries = 0](auto) mutable {
+      [&, siter, retries = 0](auto timer_id) mutable {
         constexpr auto MAX_RETRIES = 5;
         if (retries++ >= MAX_RETRIES)
           return error(ctx, socket, siter, TIMED_OUT);
@@ -456,6 +447,7 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
 {
   using enum messages::opcode_t;
   using enum messages::error_t;
+  using namespace detail;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
   auto &[key, session] = *siter;
@@ -482,32 +474,17 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
     return error(ctx, socket, siter, NOT_DEFINED);
   }
 
-  // Check that the target file can be opened for writing.
-  state.file = std::make_shared<std::fstream>(state.target,
-                                              std::ios::app | std::ios::binary);
-  if (!state.file->is_open())
+  auto err = std::error_code();
+  state.file = filesystem::tmpfile_from(
+      state.target, std::ios::out | std::ios::binary | std::ios::trunc,
+      state.tmp, err);
+  if (!state.file)
   {
-    spdlog::error("WRQ error from {}. Unable to open {} for writing.", addrstr,
-                  state.target.c_str());
+    spdlog::error(
+        "WRQ error from {}. Unable to open temporary file with error: {}",
+        addrstr, err.message());
     return error(ctx, socket, siter, ACCESS_VIOLATION);
   }
-
-  // Create and open a temporary file for writing.
-  auto tmp = (std::filesystem::temp_directory_path() / "tftp.")
-                 .concat(std::format("{:05d}", count_++));
-
-  state.file = std::make_shared<std::fstream>(
-      tmp, std::ios::out | std::ios::binary | std::ios::trunc);
-
-  if (!state.file->is_open()) [[unlikely]]
-  {
-    spdlog::error(                                           // GCOVR_EXCL_LINE
-        "WRQ error from {}. Unable to open {} for writing.", // GCOVR_EXCL_LINE
-        addrstr, tmp.c_str());                               // GCOVR_EXCL_LINE
-    return error(ctx, socket, siter, ACCESS_VIOLATION);      // GCOVR_EXCL_LINE
-  }
-
-  state.tmp = tmp;
 
   state.socket = static_cast<session::socket_type>(*socket.socket);
 
@@ -525,26 +502,21 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
+  auto &opc = session.state.opc;
+  auto &block_num = session.state.block_num;
+  auto &target = session.state.target;
+  auto &tmp = session.state.tmp;
 
-  auto &state = session.state;
-  if (state.opc == WRQ)
+  if (opc == WRQ)
   {
     const auto *msg = reinterpret_cast<const messages::data *>(buf.data());
 
     // Re-ACK duplicate packets.
-    auto &block_num = session.state.block_num;
     if (ntohs(msg->block_num) == block_num)
-      get_next(ctx, socket, siter);
+      ack(ctx, socket, siter);
 
     if (ntohs(msg->block_num) != block_num + 1)
       return reader(ctx, socket, rctx);
-
-    // Update statistics.
-    auto now = session::clock::now();
-    auto &[start_time, avg_rtt] = session.state.statistics;
-    avg_rtt = clamped_exp_weighted_average(
-        duration_cast<milliseconds>(now - start_time), avg_rtt);
-    start_time = now;
 
     const char *data = reinterpret_cast<const char *>(msg) + sizeof(*msg);
     block_num++;
@@ -552,23 +524,18 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
     // Write the data to the file.
     auto &file = session.state.file;
     file->write(data, static_cast<std::streamsize>(buf.size()));
-
     if (file->fail())
-    {
-      spdlog::error("Invalid DATA from {}, {} failed.", addrstr,
-                    state.tmp.c_str());
-      return error(ctx, socket, siter, DISK_FULL);
+    {                                                   // GCOVR_EXCL_LINE
+      spdlog::error("Invalid DATA from {}, {} failed.", // GCOVR_EXCL_LINE
+                    addrstr,                            // GCOVR_EXCL_LINE
+                    tmp.c_str());                       // GCOVR_EXCL_LINE
+      return error(ctx, socket, siter, DISK_FULL);      // GCOVR_EXCL_LINE
     }
 
     // File writing is complete.
     if (buf.size() < messages::DATAMSG_MAXLEN)
     {
       file->close();
-
-      auto &timer = session.state.timer;
-      auto &tmp = session.state.tmp;
-      auto &target = session.state.target;
-
       std::error_code err;
       std::filesystem::rename(tmp, target, err);
       if (err != std::errc{}) [[unlikely]]
@@ -578,15 +545,6 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
                       err.message());                       // GCOVR_EXCL_LINE
         return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
       }
-
-      timer = ctx.timers.remove(timer);
-      timer = ctx.timers.add(2 * avg_rtt, [&, siter, key, target](auto) {
-        auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
-        auto addrstr = to_str(addrbuf, key);
-
-        spdlog::info("WRQ from {} for {} complete.", addrstr, target.c_str());
-        cleanup(ctx, socket, siter);
-      });
     }
 
     get_next(ctx, socket, siter);
@@ -632,25 +590,24 @@ auto server::get_next(async_context &ctx, const socket_dialog &socket,
 
   auto &[key, session] = *siter;
   auto &timer = session.state.timer;
-  auto &file = session.state.file;
-  auto &[_, avg_rtt] = session.state.statistics;
+  auto &[start_time, avg_rtt] = session.state.statistics;
+
+  timer = ctx.timers.remove(timer);
 
   ack(ctx, socket, siter);
 
-  if (file && file->is_open()) // WRQ is not yet complete.
-  {
-    timer = ctx.timers.remove(timer);
-    timer = ctx.timers.add(
-        2 * avg_rtt,
-        [&, siter, retries = 0](auto) mutable {
-          constexpr auto MAX_RETRIES = 5;
-          if (retries++ >= MAX_RETRIES)
-            return error(ctx, socket, siter, TIMED_OUT);
+  // Update statistics.
+  auto now = session::clock::now();
+  avg_rtt = clamped_exp_weighted_average(
+      duration_cast<milliseconds>(now - start_time), avg_rtt);
+  start_time = now;
 
-          ack(ctx, socket, siter);
-        },
-        2 * avg_rtt);
-  }
+  // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+  timer = ctx.timers.add(
+      5 * avg_rtt,
+      [&, siter](auto) mutable { return error(ctx, socket, siter, TIMED_OUT); },
+      5 * avg_rtt);
+  // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 }
 
 auto server::cleanup(async_context &ctx, const socket_dialog &socket,

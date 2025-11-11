@@ -57,19 +57,18 @@ protected:
     rrq_netascii = rrq_octet;
     rrq_mail = rrq_octet;
 
-    std::ranges::copy(std::string_view("octet"), std::back_inserter(rrq_octet));
-    rrq_octet.push_back('\0');
+    std::ranges::copy("octet", std::back_inserter(rrq_octet));
 
-    std::ranges::copy(std::string_view("netascii"),
-                      std::back_inserter(rrq_netascii));
-    rrq_netascii.push_back('\0');
+    std::ranges::copy("netascii", std::back_inserter(rrq_netascii));
 
-    std::ranges::copy(std::string_view("mail"), std::back_inserter(rrq_mail));
-    rrq_mail.push_back('\0');
+    std::ranges::copy("mail", std::back_inserter(rrq_mail));
 
     wrq_octet = rrq_octet;
     opc = htons(WRQ);
     std::memcpy(wrq_octet.data(), &opc, sizeof(opc));
+
+    wrq_mail = rrq_mail;
+    std::memcpy(wrq_mail.data(), &opc, sizeof(opc));
 
     wrq_no_permission.resize(sizeof(std::uint16_t));
     std::memcpy(wrq_no_permission.data(), &opc, sizeof(messages::opcode_t));
@@ -110,6 +109,7 @@ protected:
   std::vector<char> rrq_mail;
   std::vector<char> wrq_octet;
   std::vector<char> wrq_no_permission;
+  std::vector<char> wrq_mail;
   std::vector<char> ack;
 };
 
