@@ -6,6 +6,7 @@
 
 #include <charconv>
 #include <csignal>
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <iostream>
@@ -18,7 +19,15 @@ using tftp_server = context_thread<server>;
 
 static constexpr unsigned short PORT = 69;
 static constexpr char const *const usage =
-    "usage: {} [--log-level <LEVEL>] [<PORT>]\n";
+    "usage: {} [-m <MAIL_PREFIX>] [-l <LEVEL>] [-p <PORT>]\n"
+    "\n"
+    "Options:\n"
+    "-h, --help                         print this help.\n"
+    "-m, --mail-prefix=<MAIL_PREFIX>    set the  mailprefix.\n"
+    "-l, --log-level=<LEVEL>            set the log-level (critical, error, "
+    "warn, info, debug)\n"
+    "-p, --port=<PORT>                  set the port to listen on (default: "
+    "69).\n";
 
 static auto signal_mask() -> sigset_t *
 {
@@ -104,6 +113,7 @@ static auto set_loglevel(std::string_view value) -> int
   return -1;
 }
 
+// NOLINTNEXTLINE
 auto parse_args(int argc, char const *const *argv) -> std::optional<config>
 {
   using namespace tftp::detail;
@@ -127,24 +137,39 @@ auto parse_args(int argc, char const *const *argv) -> std::optional<config>
         return std::nullopt;
       }
 
-      if (flag == "--log-level")
+      if (flag == "-m" || flag == "--mail-prefix")
+      {
+        auto path = std::filesystem::path(value);
+        if (setenv("TFTP_MAIL_PREFIX", path.c_str(), 1))
+        {
+          std::cerr << std::format(
+              "Unable to set TFTP_MAIL_PREFIX, error: {}",
+              std::error_code(errno, std::system_category()).message());
+          return error();
+        }
+      }
+      else if (flag == "-l" || flag == "--log-level")
       {
         if (!set_loglevel(value))
           continue;
 
         return error();
       }
-
-      std::cerr << std::format("Unknown flag: {}\n", flag);
-      return error();
-    }
-
-    // positional options.
-    auto [ptr, err] = std::from_chars(value.cbegin(), value.cend(), conf.port);
-    if (err != std::errc{})
-    {
-      std::cerr << std::format("Invalid port number: {}\n", value);
-      return error();
+      else if (flag == "-p" || flag == "--port")
+      {
+        auto [ptr, err] =
+            std::from_chars(value.cbegin(), value.cend(), conf.port);
+        if (err != std::errc{})
+        {
+          std::cerr << std::format("Invalid port number: {}\n", value);
+          return error();
+        }
+      }
+      else
+      {
+        std::cerr << std::format("Unknown flag: {}\n", flag);
+        return error();
+      }
     }
   }
 
