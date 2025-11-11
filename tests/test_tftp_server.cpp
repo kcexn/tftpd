@@ -574,8 +574,7 @@ TEST_F(TftpServerTests, TestWRQMail)
                                 .buffers = recvbuf};
   len = recvmsg(sock, sockmsg, 0);
 
-  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::not_implemented().data(), len),
-            0);
+  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::no_such_user().data(), len), 0);
 }
 
 TEST_F(TftpServerTests, TestWRQUnknownTID)

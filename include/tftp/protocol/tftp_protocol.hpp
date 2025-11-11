@@ -157,6 +157,13 @@ struct errors {
     return static_cast<const decltype(buf) &>(buf);
   }
 
+  static auto no_such_user() noexcept -> decltype(auto)
+  {
+    using enum messages::error_t;
+    static constexpr auto buf = msg(NO_SUCH_USER, "No such user.");
+    return static_cast<const decltype(buf) &>(buf);
+  }
+
   static auto illegal_operation() noexcept -> decltype(auto)
   {
     using enum messages::error_t;

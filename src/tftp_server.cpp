@@ -242,6 +242,10 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
       msg.buffers = errors::disk_full(); // GCOVR_EXCL_LINE
       break;                             // GCOVR_EXCL_LINE
 
+    case NO_SUCH_USER:
+      msg.buffers = errors::no_such_user();
+      break;
+
     case UNKNOWN_TID:
       msg.buffers = errors::unknown_tid();
       break;
@@ -479,8 +483,9 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
   assert(state.opc == WRQ && "Operation MUST be a write request.");
   if (state.mode == messages::MAIL)
   {
-    spdlog::error("Invalid WRQ from {}. Mail mode is not supported.", addrstr);
-    return error(ctx, socket, siter, NOT_DEFINED);
+    state.target =
+        filesystem::mail_directory() / state.target /
+        std::format("{:%Y%m%d_%H%M%S}", std::chrono::system_clock::now());
   }
 
   auto err = std::error_code();
@@ -492,6 +497,10 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
     spdlog::error(
         "WRQ error from {}. Unable to open temporary file with error: {}",
         addrstr, err.message());
+    if (state.mode == messages::MAIL &&
+        err == std::errc::no_such_file_or_directory)
+      return error(ctx, socket, siter, NO_SUCH_USER);
+
     return error(ctx, socket, siter, ACCESS_VIOLATION);
   }
 
