@@ -563,6 +563,8 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
                       err.message());                       // GCOVR_EXCL_LINE
         return error(ctx, socket, siter, ACCESS_VIOLATION); // GCOVR_EXCL_LINE
       }
+
+      spdlog::info("WRQ for {} from {} successful.", target.c_str(), addrstr);
     }
 
     get_next(ctx, socket, siter);
