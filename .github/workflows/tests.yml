@@ -42,7 +42,7 @@ jobs:
           path: ~/.ccache
           key: ccache-${{ runner.os }}-${{ hashFiles('**/*.cpp', '**/*.hpp', '**/*.h', '**/*.c') }}
           restore-keys: |
-            ccaches-${{ runner.os }}-
+            ccache-${{ runner.os }}-
 
       - name: Cache CMake build directory
         uses: actions/cache@v4
