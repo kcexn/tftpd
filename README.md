@@ -1,39 +1,26 @@
-# rfc862-echo-server
+# TFTP daemon
 
 [![Tests](https://github.com/kcexn/rfc862-echo/actions/workflows/tests.yml/badge.svg)](https://github.com/kcexn/rfc862-echo/actions/workflows/tests.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/575775ae38044852bbc6eeefae1c83d5)](https://app.codacy.com/gh/kcexn/rfc862-echo/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![Codacy Badge](https://app.codacy.com/project/badge/Coverage/575775ae38044852bbc6eeefae1c83d5)](https://app.codacy.com/gh/kcexn/rfc862-echo/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_coverage)
 
-A simple echo server. Technically implements [RFC 862](https://datatracker.ietf.org/doc/html/rfc862).
+A modern TFTP (Trivial File Transfer Protocol) server written in C++20. Implements [RFC 1350](https://www.rfc-editor.org/rfc/rfc1350).
 
 ## Features
 
-- **Supports both UDP and TCP echoing**: Listens on port 7 by default.
-- **IPv4/IPv6 Dual-Stack**: Supports both IPv4 and IPv6 connections.
-
-## Requirements
-
-- **C++20 Compiler**: GCC 11+, Clang 14+, or MSVC 2022+
-- **CMake**: 3.28 or higher
-- **Ninja**: Build system (recommended)
-- **gcovr**: For code coverage reports (optional, debug builds only)
-
-## Dependencies
-
-All dependencies are automatically fetched via CMake:
-
-- [**stdexec**](https://github.com/NVIDIA/stdexec) - NVIDIA's C++ sender/receiver async framework
-- [**async-berkeley**](https://github.com/kcexn/async-berkeley) - Async Berkeley sockets wrapper
-- [**cppnet**](https://github.com/kcexn/cloudbus-net) - Networking utilities and service base classes
-- [**spdlog**](https://github.com/gabime/spdlog) - Fast C++ logging library
-- [**GoogleTest**](https://github.com/google/googletest) - Test suites (Optional)
+- **RFC 1350 compliant**: Full support for TFTP protocol (RRQ, WRQ, DATA, ACK, ERROR)
+- **Transfer modes**: NETASCII, OCTET, and MAIL modes
+- **Dual-stack networking**: IPv6 with IPv4 compatibility
+- **Concurrent sessions**: Handles multiple file transfers simultaneously using async I/O
+- **Adaptive timeouts**: RTT-based timeout adjustment for reliable transfers
+- **Modern C++20**: Leverages coroutines, concepts, and stdexec for async operations
 
 ## Quick Start
 
 ### Building
 
 ```bash
-# Debug build with tests and coverage
+# Debug build with tests
 cmake --preset debug
 cmake --build build/debug
 
@@ -42,51 +29,30 @@ cmake --preset release
 cmake --build build/release
 ```
 
-### Installation
+### Running
 
 ```bash
-# Install (default: /usr/local/bin)
-sudo cmake --install build/release
+# Run on default port 69 (requires root/sudo)
+sudo ./build/release/bin/tftpd
 
-# Or specify custom prefix
-cmake --preset release -DCMAKE_INSTALL_PREFIX=/opt/echo
-sudo cmake --install build/release
+# Run on custom port
+./build/release/bin/tftpd -p 6969
+
+# Set log level
+./build/release/bin/tftpd -l debug -p 6969
+
+# Set mail directory prefix
+./build/release/bin/tftpd -m /var/mail -p 6969
 ```
 
-### Running the Server
+### Command-line Options
 
-```bash
-# Run on default port 7 (requires root/admin privileges)
-sudo ./build/release/bin/echo-server
+- `-h, --help` - Display help message
+- `-p, --port=<PORT>` - Port to listen on (default: 69)
+- `-l, --log-level=<LEVEL>` - Log level: critical, error, warn, info, debug (default: info)
+- `-m, --mail-prefix=<PATH>` - Mail directory prefix for MAIL mode transfers
 
-# Run on custom port with debug logging
-./build/release/bin/echo-server --log-level debug 8080
-```
-
-### Testing the Server
-
-```bash
-# Using netcat
-echo "Hello, World!" | nc localhost 8080
-
-# Using telnet
-telnet localhost 8080
-```
-
-## Usage
-
-```text
-echo-server [--log-level <LEVEL>] [<PORT>]
-
-Options:
-  --log-level <LEVEL>   Set logging level (trace, debug, info, warn, error, critical, off)
-  -h, --help           Show help message
-  <PORT>               Port number to listen on (default: 7)
-```
-
-## Development
-
-### Running Tests
+## Testing
 
 ```bash
 # Run all tests
@@ -94,29 +60,72 @@ cmake --preset debug
 cmake --build build/debug
 ctest --test-dir build/debug
 
-# Run specific test
-./build/debug/tests/test_echo_service
-```
-
-### Code Coverage
-
-```bash
-# Generate HTML coverage report
+# Generate code coverage report
 cmake --build build/debug --target coverage
-# Open build/debug/coverage/index.html in browser
-
-# Generate XML coverage for CI
-cmake --build build/debug --target coverage-xml
+# View: build/debug/coverage/index.html
 ```
 
-### Code Style
+## Dependencies
 
-The project uses clang-format and clang-tidy for code formatting and linting:
+- **stdexec** - NVIDIA's sender/receiver async framework
+- **AsyncBerkeley** - Async Berkeley sockets interface
+- **cppnet** (cloudbus-net) - Networking utilities
+- **spdlog** - Fast C++ logging library
+
+All dependencies are automatically fetched via CPM.cmake during build.
+
+## Architecture
+
+Built on stdexec's sender/receiver async model:
+
+- **UDP demultiplexing**: Each client connection becomes an independent session
+- **Session management**: Sessions tracked in multimap keyed by client address
+- **Async file I/O**: Non-blocking file operations using stdexec senders
+- **Adaptive retransmission**: Timeout adjusts based on measured round-trip time
+
+## Protocol Support
+
+### Read Requests (RRQ)
+
+Clients can download files from the server. Files are read in 512-byte blocks and transmitted sequentially.
+
+### Write Requests (WRQ)
+
+Clients can upload files to the server. Data is written to a temporary file first, then atomically renamed on successful completion.
+
+### Error Handling
+
+Comprehensive error reporting with standard TFTP error codes:
+
+- File not found (1)
+- Access violation (2)
+- Disk full (3)
+- Illegal operation (4)
+- Unknown transfer ID (5)
+- File already exists (6)
+- No such user (7)
+
+## Requirements
+
+- C++20 compiler (GCC 11+, Clang 14+)
+- CMake 3.28+
+- Ninja build system (recommended)
+
+## Installation
 
 ```bash
-# Format code
-find src include tests -name "*.cpp" -o -name "*.hpp" | xargs clang-format -i
-
-# Run linter
-clang-tidy src/*.cpp -- -std=c++20 -I include/
+cmake --build build/release --target install
 ```
+
+## License
+
+GPL-3.0 - See source files for full license text.
+
+## Contributing
+
+This project uses:
+
+- **clang-format** for code formatting
+- **clang-tidy** for static analysis
+- **GoogleTest** for unit testing
+- **gcov/gcovr** for code coverage

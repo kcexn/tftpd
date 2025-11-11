@@ -16,20 +16,18 @@ target_include_directories(
 target_link_libraries(
   tftplib
   PUBLIC
-  asyncberk
   cppnet
-  STDEXEC::stdexec
   spdlog::spdlog_header_only
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_executable(
-  tftp-server
+  tftpd
   main.cpp
 )
 target_link_libraries(
-  tftp-server
+  tftpd
   PRIVATE
   tftplib
 )
-install(TARGETS tftp-server)
+install(TARGETS tftpd)
