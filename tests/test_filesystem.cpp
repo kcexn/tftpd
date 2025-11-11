@@ -78,8 +78,12 @@ TEST_F(TestFileSystem, NextIncrementsCounter)
 
 TEST_F(TestFileSystem, MakeTmpCopiesFile)
 {
+  using namespace std::filesystem;
+
   std::error_code err;
   const auto from_path = tmpname();
+  remove(from_path);
+
   std::ofstream(from_path) << "test content";
 
   auto to_path = std::filesystem::path();
@@ -92,12 +96,16 @@ TEST_F(TestFileSystem, MakeTmpCopiesFile)
               std::filesystem::file_size(from_path) ==
                   std::filesystem::file_size(to_path));
 
-  std::filesystem::remove(from_path);
-  std::filesystem::remove(to_path);
+  remove(from_path);
+  remove(to_path);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
 
 TEST_F(TestFileSystem, MakeTmpReturnsEmptyPathOnError)
 {
+  using namespace std::filesystem;
+
   std::error_code err;
   const auto nonexistent_path = tmpname();
   auto tmp = std::filesystem::path();
@@ -107,17 +115,24 @@ TEST_F(TestFileSystem, MakeTmpReturnsEmptyPathOnError)
 
   EXPECT_TRUE(err);
   EXPECT_TRUE(tmp.empty());
+
+  remove(nonexistent_path);
+  remove(tmp);
 }
 
 TEST_F(TestFileSystem, MakeTmpHandlesOpenFailureAfterCopy)
 {
+  using namespace std::filesystem;
+
   std::error_code err;
 
   const auto from_path = tmpname();
+  remove(from_path);
+
   std::ofstream(from_path) << "test content";
 
-  std::filesystem::permissions(from_path, std::filesystem::perms::owner_read,
-                               std::filesystem::perm_options::replace);
+  permissions(from_path, std::filesystem::perms::owner_read,
+              std::filesystem::perm_options::replace);
 
   auto to_path = std::filesystem::path();
 
@@ -131,12 +146,15 @@ TEST_F(TestFileSystem, MakeTmpHandlesOpenFailureAfterCopy)
 
   std::filesystem::permissions(from_path, std::filesystem::perms::owner_all,
                                std::filesystem::perm_options::replace);
-  std::filesystem::remove(from_path);
+
+  remove(from_path);
+  remove(to_path);
 }
 
 TEST_F(TestFileSystem, TouchCreatesNewFile)
 {
   const auto path = tmpname();
+  std::filesystem::remove(path);
   EXPECT_FALSE(std::filesystem::exists(path));
 
   const auto err = touch(path);
@@ -150,6 +168,7 @@ TEST_F(TestFileSystem, TouchCreatesNewFile)
 TEST_F(TestFileSystem, TouchSucceedsOnExistingFile)
 {
   const auto path = tmpname();
+  std::filesystem::remove(path);
   std::ofstream(path) << "existing content";
 
   const auto err = touch(path);

@@ -45,6 +45,7 @@ protected:
 
     test_file = (std::filesystem::temp_directory_path() / "test.")
                     .concat(std::format("{:05d}", test_counter++));
+    remove(test_file);
 
     rrq_octet.resize(sizeof(messages::opcode_t));
     auto opc = htons(RRQ);
@@ -86,6 +87,8 @@ protected:
     server_->start(addr_v4);
     server_->state.wait(PENDING);
     ASSERT_EQ(server_->state, STARTED);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
   auto TearDown() noexcept -> void override

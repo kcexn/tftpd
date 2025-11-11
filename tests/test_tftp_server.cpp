@@ -276,23 +276,18 @@ TEST_F(TftpServerTests, TestDuplicateRRQ)
       sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
   ASSERT_EQ(len, rrq_octet.size());
 
-  len = 516;
-  while (len == 516)
-  {
-    using namespace io;
-    auto recvbuf = std::vector<char>(516);
-    auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
-                                  .buffers = recvbuf};
-    len = recvmsg(sock, sockmsg, 0);
-    ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
+  using namespace io;
+  auto recvbuf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = recvbuf};
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(std::memcmp(recvbuf.data() + 4, test_data.data(), len - 4), 0);
 
-    auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
-    auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
-    ackmsg->block_num = datamsg->block_num;
+  auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
+  auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ackmsg->block_num = datamsg->block_num;
 
-    sendmsg(sock, socket_message{.address = sockmsg.address, .buffers = ack},
-            0);
-  }
+  sendmsg(sock, socket_message{.address = sockmsg.address, .buffers = ack}, 0);
 
   remove(test_file);
 }
