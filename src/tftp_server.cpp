@@ -483,6 +483,8 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
   state.target = request->filename;
   state.mode = request->mode;
 
+  spdlog::debug("WRQ:{}:filename={}", addrstr, request->filename);
+
   assert(state.opc == WRQ && "Operation MUST be a write request.");
   if (state.mode == messages::MAIL)
   {
@@ -502,7 +504,9 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
         addrstr, err.message());
     if (state.mode == messages::MAIL &&
         err == std::errc::no_such_file_or_directory)
+    {
       return error(ctx, socket, siter, NO_SUCH_USER);
+    }
 
     return error(ctx, socket, siter, ACCESS_VIOLATION);
   }
@@ -533,21 +537,23 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
 
   if (opc == WRQ)
   {
-    const auto *msg = reinterpret_cast<const messages::data *>(buf.data());
+    auto msg =
+        std::span(reinterpret_cast<const char *>(buf.data()), buf.size());
+    const auto *data = reinterpret_cast<const messages::data *>(msg.data());
 
     // Re-ACK duplicate packets.
-    if (ntohs(msg->block_num) == block_num)
+    if (ntohs(data->block_num) == block_num)
       ack(ctx, socket, siter);
 
-    if (ntohs(msg->block_num) != block_num + 1)
+    if (ntohs(data->block_num) != block_num + 1)
       return reader(ctx, socket, rctx);
 
-    const char *data = reinterpret_cast<const char *>(msg) + sizeof(*msg);
+    auto payload = msg.subspan(sizeof(*data));
     block_num++;
 
     // Write the data to the file.
     auto &file = session.state.file;
-    file->write(data, static_cast<std::streamsize>(buf.size()));
+    file->write(payload.data(), static_cast<std::streamsize>(payload.size()));
     if (file->fail())
     {                                                   // GCOVR_EXCL_LINE
       spdlog::error("Invalid DATA from {}, {} failed.", // GCOVR_EXCL_LINE
@@ -592,6 +598,9 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   auto &buffer = session.state.buffer;
   auto &block_num = session.state.block_num;
+
+  spdlog::debug("WRQ:filename={} block_num={}", session.state.target.c_str(),
+                block_num);
 
   buffer.resize(sizeof(messages::ack));
 
