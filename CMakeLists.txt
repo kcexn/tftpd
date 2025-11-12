@@ -11,7 +11,7 @@ include(GNUInstallDirs)
 include(cmake/CPM.cmake)
 
 # Add cppnet as a dependency.
-CPMAddPackage("gh:kcexn/cloudbus-net@0.7.5")
+CPMAddPackage("gh:kcexn/cppnet@0.7.5")
 
 # Add spdlog as a dependency.
 CPMAddPackage("gh:gabime/spdlog@1.16.0")
