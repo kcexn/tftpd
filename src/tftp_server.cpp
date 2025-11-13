@@ -412,8 +412,13 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
   auto &block_num = session.state.block_num;
+  auto &timer = session.state.timer;
+  auto &[start_time, avg_rtt] = session.state.statistics;
+  auto &file = session.state.file;
+  auto &target = session.state.target;
 
   const auto *data = reinterpret_cast<const messages::data *>(buf.data());
+  auto prev_block = block_num;
   auto err = handle_data(data, buf.size(), siter);
   if (err)
   {
@@ -422,7 +427,25 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   }
 
   if (ntohs(data->block_num) == block_num)
+  {
     send_ack(ctx, socket, siter);
+
+    if (!file->is_open())
+      spdlog::info("WRQ:{}:Completed {}.", addrstr, target.c_str());
+
+    if (prev_block != block_num)
+    {
+      update_statistics(session.state.statistics);
+      timer = ctx.timers.remove(timer);
+      // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
+      timer = ctx.timers.add(5 * avg_rtt, [&, siter, socket](auto) {
+        if (file->is_open())
+          return error(ctx, socket, siter, TIMED_OUT);
+
+        cleanup(ctx, socket, siter);
+      });
+    }
+  }
 
   reader(ctx, socket, rctx);
 }
