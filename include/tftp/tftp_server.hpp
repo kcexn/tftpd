@@ -25,8 +25,8 @@
 #include <net/service/async_udp_service.hpp>
 /** @namespace For top-level tftp services. */
 namespace tftp {
-/** @brief UDP Read Buffer Size, 4KiB. */
-static constexpr auto BUFSIZE = 4 * 1024UL;
+/** @brief TFTP max buffer allocation.. */
+static constexpr auto BUFSIZE = 516UL;
 /** @brief The service type to use. */
 template <typename UDPStreamHandler>
 using udp_base = net::service::async_udp_service<UDPStreamHandler, BUFSIZE>;

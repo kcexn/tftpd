@@ -403,7 +403,7 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   using enum messages::error_t;
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
-  if (buf.size() < sizeof(messages::data))
+  if (buf.size() < sizeof(messages::data) || (rctx->msg.flags & MSG_TRUNC))
     return error(ctx, socket, siter, ILLEGAL_OPERATION);
 
   auto &[key, session] = *siter;
