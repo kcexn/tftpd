@@ -427,11 +427,11 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
   {
     send_ack(ctx, socket, siter);
 
-    if (!file->is_open())
-      spdlog::info("WRQ:{}:Completed {}.", addrstr, target.c_str());
-
     if (prev_block != block_num)
     {
+      if (!file->is_open())
+        spdlog::info("WRQ:{}:Completed {}.", addrstr, target.c_str());
+
       update_statistics(session.state.statistics);
       timer = ctx.timers.remove(timer);
       // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
