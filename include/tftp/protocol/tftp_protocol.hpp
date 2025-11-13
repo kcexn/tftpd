@@ -26,6 +26,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 /** @brief TFTP related utilities. */
 namespace tftp {
 // NOLINTBEGIN(performance-enum-size)
@@ -147,6 +148,45 @@ struct errors {
     return buf;
   }
   // NOLINTEND
+
+  /**
+   * @brief Converts a TFTP error to a string.
+   * @param error The TFTP error.
+   * @returns A string_view containing the relevant error message.
+   */
+  static constexpr auto errstr(std::uint16_t error) noexcept -> std::string_view
+  {
+    using enum messages::error_t;
+    switch (error)
+    {
+      case ACCESS_VIOLATION:
+        return "Access violation.";
+
+      case FILE_NOT_FOUND:
+        return "File not found.";
+
+      case DISK_FULL:
+        return "Disk full.";
+
+      case NO_SUCH_USER:
+        return "No such user.";
+
+      case FILE_ALREADY_EXISTS:
+        return "File already exists.";
+
+      case UNKNOWN_TID:
+        return "Unknown TID.";
+
+      case ILLEGAL_OPERATION:
+        return "Illegal operation.";
+
+      case TIMED_OUT:
+        return "Timed out.";
+
+      default:
+        return "Not defined.";
+    }
+  }
 
   /**
    * @brief Creates a "Not implemented" error packet.

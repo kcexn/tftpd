@@ -62,13 +62,15 @@ struct session {
     std::vector<char> buffer;
     /** @brief The fstream associated with the operation. */
     std::shared_ptr<std::fstream> file;
-    /** @brief RTT statistics. */
-    struct {
+    /** @brief RTT statistics aggregate type. */
+    struct statistics_t {
       /** @brief Used to mark the start time of an interval. */
-      timestamp start_time{clock::now()};
+      timestamp start_time{clock::now() - TIMEOUT_MAX};
       /** @brief The aggregate avg round trip time. */
       duration avg_rtt{TIMEOUT_MAX};
-    } statistics;
+    };
+    /** @brief RTT statistics. */
+    statistics_t statistics;
     /** @brief A timer id associated to the TFTP session. */
     timer_id timer{INVALID_TIMER};
     /** @brief The local socket that the session is keyed on. */

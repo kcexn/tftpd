@@ -54,8 +54,8 @@ TEST_F(TftpServerTests, TestInvalidRRQ)
   auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
                                 .buffers = recvbuf};
   len = io::recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::not_implemented().data(), len),
-            0);
+  ASSERT_EQ(
+      std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
 TEST_F(TftpServerTests, TestRRQNotPermitted)
@@ -163,6 +163,23 @@ TEST_F(TftpServerTests, TestRRQTimeout)
   auto sockmsg = socket_message<sockaddr_in>{
       .address = {socket_address<sockaddr_in>()}, .buffers = recvbuf};
 
+  // Test Timeout Path1
+  auto start = clock_type::now();
+  // Timeout after 6 attempts (1 + 5 retries).
+  for (int i = 0; i < 6; i++)
+  {
+    len = recvmsg(sock, sockmsg, 0);
+  }
+  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::timed_out().data(), len), 0);
+
+  auto timeout = duration_cast<milliseconds>(clock_type::now() - start);
+  EXPECT_GE(timeout, 240ms);
+  EXPECT_LE(timeout, 6500ms);
+
+  // Test Timeout Path2
+  len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
+  ASSERT_EQ(len, rrq_octet.size());
   // ACK five times to prime statistics.
   for (int i = 0; i < 5; ++i)
   {
@@ -179,7 +196,7 @@ TEST_F(TftpServerTests, TestRRQTimeout)
             0);
   }
 
-  auto start = clock_type::now();
+  start = clock_type::now();
 
   // Timeout after 6 attempts (1 + 5 retries).
   for (int i = 0; i < 6; i++)
@@ -190,7 +207,7 @@ TEST_F(TftpServerTests, TestRRQTimeout)
   len = recvmsg(sock, sockmsg, 0);
   ASSERT_EQ(std::memcmp(recvbuf.data(), errors::timed_out().data(), len), 0);
 
-  auto timeout = duration_cast<milliseconds>(clock_type::now() - start);
+  timeout = duration_cast<milliseconds>(clock_type::now() - start);
   EXPECT_GE(timeout, 240ms);
   EXPECT_LE(timeout, 1500ms);
 
@@ -398,7 +415,7 @@ TEST_F(TftpServerTests, TestWRQ)
   using namespace std::filesystem;
   using namespace io;
 
-  std::vector<char> test_data(511);
+  std::vector<char> test_data(513);
 
   {
     auto inf = std::ifstream("/dev/random");
@@ -421,16 +438,14 @@ TEST_F(TftpServerTests, TestWRQ)
   auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
   ASSERT_EQ(ntohs(ackmsg->block_num), 0);
 
-  auto block_num = ntohs(ackmsg->block_num);
-  block_num++;
-
   auto msg = std::vector<char>(sizeof(messages::data));
   msg.reserve(sizeof(messages::data) + test_data.size());
   auto *data = reinterpret_cast<messages::data *>(msg.data());
   data->opc = htons(messages::DATA);
-  data->block_num = htons(block_num);
+  data->block_num = htons(ntohs(ackmsg->block_num) + 1);
 
-  msg.insert(msg.end(), test_data.begin(), test_data.end());
+  msg.insert(msg.end(), test_data.begin(),
+             test_data.begin() + messages::DATALEN);
   len = sendmsg(sock,
                 socket_message{.address = sockmsg.address, .buffers = msg}, 0);
   ASSERT_EQ(len, msg.size());
@@ -440,6 +455,20 @@ TEST_F(TftpServerTests, TestWRQ)
 
   ackmsg = reinterpret_cast<messages::ack *>(ack.data());
   ASSERT_EQ(ntohs(ackmsg->block_num), 1);
+
+  data->block_num = htons(ntohs(ackmsg->block_num) + 1);
+  msg.erase(msg.begin() + sizeof(*data), msg.end());
+  msg.insert(msg.end(), test_data.begin() + messages::DATALEN, test_data.end());
+
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, ack.size());
+
+  ackmsg = reinterpret_cast<messages::ack *>(ack.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 2);
 
   auto compare_data = std::vector<char>(test_data.size());
   {
@@ -567,8 +596,8 @@ TEST_F(TftpServerTests, TestInvalidWRQ)
                                 .buffers = recvbuf};
   len = recvmsg(sock, sockmsg, 0);
 
-  EXPECT_EQ(std::memcmp(recvbuf.data(), errors::not_implemented().data(), len),
-            0);
+  EXPECT_EQ(
+      std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
 TEST_F(TftpServerTests, TestWRQNotPermitted)

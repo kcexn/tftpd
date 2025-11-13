@@ -79,8 +79,9 @@ TEST(TftpServerStaticTests, TestParseRRQ)
   request.resize(sizeof(opc));
   std::memcpy(request.data(), &opc, sizeof(opc));
 
-  ASSERT_FALSE(parse_request(std::span{
-      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  auto req = parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()});
+  ASSERT_EQ(req.mode, 0);
 
   opc = htons(RRQ);
   std::memcpy(request.data(), &opc, sizeof(opc));
@@ -88,24 +89,28 @@ TEST(TftpServerStaticTests, TestParseRRQ)
   auto path = std::string("test.txt");
   request.insert(request.end(), path.begin(), path.end());
 
-  ASSERT_FALSE(parse_request(std::span{
-      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  req = parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()});
+  ASSERT_EQ(req.mode, 0);
 
   request.push_back('\0');
   auto mode = std::string("netascii");
   request.insert(request.end(), mode.begin(), mode.end());
 
-  ASSERT_FALSE(parse_request(std::span{
-      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  req = parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()});
+  ASSERT_EQ(req.mode, 0);
 
   request.back() = '\0';
-  ASSERT_FALSE(parse_request(std::span{
-      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  req = parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()});
+  ASSERT_EQ(req.mode, 0);
 
   request.back() = 'i';
   request.push_back('\0');
-  ASSERT_TRUE(parse_request(std::span{
-      reinterpret_cast<std::byte *>(request.data()), request.size()}));
+  req = parse_request(
+      std::span{reinterpret_cast<std::byte *>(request.data()), request.size()});
+  ASSERT_NE(req.mode, 0);
 }
 
 #undef TFTP_SERVER_STATIC_TEST

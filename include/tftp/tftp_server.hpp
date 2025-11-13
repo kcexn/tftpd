@@ -20,11 +20,9 @@
 #pragma once
 #ifndef TFTP_SERVER_HPP
 #define TFTP_SERVER_HPP
-#include "protocol/tftp_session.hpp"
+#include "tftp.hpp"
 
 #include <net/service/async_udp_service.hpp>
-
-#include <map>
 /** @namespace For top-level tftp services. */
 namespace tftp {
 /** @brief UDP Read Buffer Size, 4KiB. */
@@ -40,10 +38,6 @@ public:
   using Base = udp_base<server>;
   /** @brief The socket message type. */
   using socket_message = io::socket::socket_message<sockaddr_in6>;
-  /** @brief Sessions map. */
-  using sessions_t = std::multimap<socket_address<sockaddr_in6>, session>;
-  /** @brief Map iterator. */
-  using iterator = sessions_t::iterator;
 
   /**
    * @brief Constructs a TFTP server on the socket address.
@@ -64,7 +58,7 @@ public:
    */
   auto service(async_context &ctx, const socket_dialog &socket,
                const std::shared_ptr<read_context> &rctx,
-               std::span<const std::byte> buf, iterator siter) -> void;
+               std::span<const std::byte> buf, iterator_t siter) -> void;
   /**
    * @brief Receives the bytes emitted by the service_base reader.
    * @param ctx The asynchronous context of the message.
@@ -88,7 +82,7 @@ private:
    * @param siter An iterator pointing to the session.
    * @param error The TFTP error code to send.
    */
-  auto error(async_context &ctx, const socket_dialog &socket, iterator siter,
+  auto error(async_context &ctx, const socket_dialog &socket, iterator_t siter,
              std::uint16_t error) -> void;
 
   /**
@@ -101,7 +95,7 @@ private:
    */
   auto rrq(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
-           std::span<const std::byte> buf, iterator siter) -> void;
+           std::span<const std::byte> buf, iterator_t siter) -> void;
 
   /**
    * @brief Services an ack.
@@ -113,7 +107,7 @@ private:
    */
   auto ack(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
-           std::span<const std::byte> msg, iterator siter) -> void;
+           std::span<const std::byte> msg, iterator_t siter) -> void;
 
   /**
    * @brief Services a write request.
@@ -125,7 +119,7 @@ private:
    */
   auto wrq(async_context &ctx, const socket_dialog &socket,
            const std::shared_ptr<read_context> &rctx,
-           std::span<const std::byte> buf, iterator siter) -> void;
+           std::span<const std::byte> buf, iterator_t siter) -> void;
 
   /**
    * @brief Services a data packet.
@@ -137,7 +131,7 @@ private:
    */
   auto data(async_context &ctx, const socket_dialog &socket,
             const std::shared_ptr<read_context> &rctx,
-            std::span<const std::byte> buf, iterator siter) -> void;
+            std::span<const std::byte> buf, iterator_t siter) -> void;
 
   /**
    * @brief Cleans-up the session from the server.
@@ -146,7 +140,7 @@ private:
    * @param siter An iterator pointing to the session to clean up.
    */
   auto cleanup(async_context &ctx, const socket_dialog &socket,
-               iterator siter) -> void;
+               iterator_t siter) -> void;
 
   /**
    * @brief Sends the current block of data to the client.
@@ -154,17 +148,8 @@ private:
    * @param socket The socket to send data on.
    * @param siter An iterator pointing to the session.
    */
-  static auto send(async_context &ctx, const socket_dialog &socket,
-                   iterator siter) -> void;
-
-  /**
-   * @brief Prepares and sends the next block of a file to the client.
-   * @param ctx The asynchronous context of the message.
-   * @param socket The socket to send data on.
-   * @param siter An iterator pointing to the session.
-   */
-  auto send_next(async_context &ctx, const socket_dialog &socket,
-                 iterator siter) -> void;
+  static auto send_data(async_context &ctx, const socket_dialog &socket,
+                        iterator_t siter) -> void;
 
   /**
    * @brief Acks the current block of data to the client.
@@ -172,17 +157,8 @@ private:
    * @param socket The socket to send the ACK on.
    * @param siter An iterator pointing to the session.
    */
-  static auto ack(async_context &ctx, const socket_dialog &socket,
-                  iterator siter) -> void;
-
-  /**
-   * @brief Prepares to receive the next block of a file from the client.
-   * @param ctx The asynchronous context of the message.
-   * @param socket The socket to receive data on.
-   * @param siter An iterator pointing to the session.
-   */
-  auto get_next(async_context &ctx, const socket_dialog &socket,
-                iterator siter) -> void;
+  static auto send_ack(async_context &ctx, const socket_dialog &socket,
+                       iterator_t siter) -> void;
 };
 } // namespace tftp
 #endif // TFTP_SERVER_HPP
