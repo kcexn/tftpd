@@ -19,7 +19,6 @@
  */
 #include "tftp/tftp.hpp"
 #include "tftp/filesystem.hpp"
-
 namespace tftp {
 /** @brief Inserts characters from buf to buffer while accomodating netascii. */
 static inline auto insert_data(std::vector<char> &buffer,
@@ -67,7 +66,6 @@ static inline auto send_next(iterator_t siter) -> std::uint16_t
   auto &state = session.state;
   auto &buffer = state.buffer;
 
-  // Prepare the next chunk for writing.
   state.block_num += 1; // block_num wraps back to 0.
 
   // Size the buffer for a complete TFTP DATA message and enough
@@ -89,14 +87,16 @@ static inline auto send_next(iterator_t siter) -> std::uint16_t
     put = std::copy(put + messages::DATALEN, buffer.end(), put);
 
   buffer.erase(put, buffer.end());
+  auto size =
+      static_cast<std::streamsize>(messages::DATAMSG_MAXLEN - buffer.size());
 
   // Read the next file chunk into the RRQ buffer.
   auto buf = std::array<char, messages::DATALEN>();
-  auto len = state.file->readsome(buf.data(), buf.size());
-  if (state.file->fail()) [[unlikely]]
+  state.file->read(buf.data(), size);
+  if (state.file->bad()) [[unlikely]]
     return messages::ACCESS_VIOLATION; // GCOVR_EXCL_LINE
 
-  insert_data(buffer, std::span(buf.data(), len), state.mode);
+  insert_data(buffer, std::span(buf.data(), state.file->gcount()), state.mode);
   return 0;
 }
 
@@ -173,7 +173,9 @@ auto handle_ack(messages::ack ack, iterator_t siter) -> std::uint16_t
     return send_next(siter);
   }
 
-  state.file->close();
+  if (ntohs(ack.block_num) == state.block_num)
+    state.file->close();
+
   return 0;
 }
 
