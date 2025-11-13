@@ -362,7 +362,6 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
   auto addrbuf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
 
   auto &[key, session] = *siter;
-  auto &file = session.state.file;
   auto &timer = session.state.timer;
   auto &[start_time, avg_rtt] = session.state.statistics;
 
@@ -389,10 +388,8 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
   timer = ctx.timers.remove(timer);
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
   timer = ctx.timers.add(5 * avg_rtt, [&, siter, socket](auto) {
-    if (file->is_open())
-      return error(ctx, socket, siter, TIMED_OUT);
-
-    cleanup(ctx, socket, siter);
+    // WRQ processing acks the 0'th data chunk so timeouts are always an error.
+    return error(ctx, socket, siter, TIMED_OUT);
   });
 
   reader(ctx, socket, rctx);
