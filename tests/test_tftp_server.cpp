@@ -578,6 +578,54 @@ TEST_F(TftpServerTests, TestWRQTimeout)
   EXPECT_EQ(std::memcmp(buf.data(), errors::timed_out().data(), len), 0);
 }
 
+TEST_F(TftpServerTests, TestWRQTimeoutAfterData)
+{
+  using namespace io::socket;
+  using namespace std::filesystem;
+  using namespace io;
+  using socket_message = socket_message<sockaddr_in6>;
+
+  // Send WRQ request
+  auto sock = socket_handle(addr_v4->sin_family, SOCK_DGRAM, 0);
+  addr_v4->sin_addr.s_addr = inet_addr("127.0.0.1");
+  auto len = io::sendmsg(
+      sock, socket_message{.address = {addr_v4}, .buffers = wrq_octet}, 0);
+  ASSERT_EQ(len, wrq_octet.size());
+
+  // Receive ACK 0
+  auto buf = std::vector<char>(516);
+  auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
+                                .buffers = buf};
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, sizeof(messages::ack));
+
+  auto *ackmsg = reinterpret_cast<messages::ack *>(buf.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 0);
+
+  // Send a full DATA block (512 bytes) - keeps file open
+  auto msg = std::vector<char>(sizeof(messages::data) + messages::DATALEN);
+  auto *data = reinterpret_cast<messages::data *>(msg.data());
+  data->opc = htons(messages::DATA);
+  data->block_num = htons(1);
+  std::fill(msg.begin() + sizeof(messages::data), msg.end(), 'X');
+
+  len = sendmsg(sock,
+                socket_message{.address = sockmsg.address, .buffers = msg}, 0);
+  ASSERT_EQ(len, msg.size());
+
+  // Receive ACK 1
+  len = recvmsg(sock, sockmsg, 0);
+  ASSERT_EQ(len, sizeof(messages::ack));
+
+  ackmsg = reinterpret_cast<messages::ack *>(buf.data());
+  ASSERT_EQ(ntohs(ackmsg->block_num), 1);
+
+  // Wait for timeout (don't send final block)
+  // This should trigger the timeout callback with file still open
+  len = recvmsg(sock, sockmsg, 0);
+  EXPECT_EQ(std::memcmp(buf.data(), errors::timed_out().data(), len), 0);
+}
+
 TEST_F(TftpServerTests, TestInvalidWRQ)
 {
   using namespace io::socket;

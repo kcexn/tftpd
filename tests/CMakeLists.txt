@@ -5,6 +5,7 @@ set(TEST_NAMES
   test_endian
   test_filesystem
   test_generator
+  test_tftp
   test_tftp_protocol
   test_tftp_server_static
   test_tftp_server

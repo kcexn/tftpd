@@ -193,8 +193,9 @@ auto handle_data(const messages::data *data, std::size_t len,
   if (opc != WRQ)
     return messages::UNKNOWN_TID;
 
-  // Re-ACK duplicate packets.
-  if (ntohs(data->block_num) != block_num + 1)
+  // Wraps block_num around
+  auto next_block = static_cast<std::uint16_t>(block_num + 1);
+  if (ntohs(data->block_num) != next_block)
     return 0;
 
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
