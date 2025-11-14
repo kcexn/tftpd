@@ -48,9 +48,9 @@ struct session {
   /** @brief The invalid socket constant. */
   static constexpr auto INVALID_SOCKET = io::socket::INVALID_SOCKET;
   /** @brief Timeout min value. */
-  static constexpr auto TIMEOUT_MIN = std::chrono::milliseconds(5);
+  static constexpr auto TIMEOUT_MIN = std::chrono::milliseconds(2);
   /** @brief Timeout max value. */
-  static constexpr auto TIMEOUT_MAX = std::chrono::milliseconds(500);
+  static constexpr auto TIMEOUT_MAX = std::chrono::milliseconds(200);
 
   /** @brief The session state. */
   struct state_t {
@@ -65,7 +65,7 @@ struct session {
     /** @brief RTT statistics aggregate type. */
     struct statistics_t {
       /** @brief Used to mark the start time of an interval. */
-      timestamp start_time{clock::now() - TIMEOUT_MAX};
+      timestamp start_time{clock::now() - TIMEOUT_MAX / 2};
       /** @brief The aggregate avg round trip time. */
       duration avg_rtt{TIMEOUT_MAX};
     };

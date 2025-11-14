@@ -41,7 +41,8 @@ protected:
     using enum net::service::async_context::context_states;
 
     addr_v4->sin_family = AF_INET;
-    addr_v4->sin_port = htons(8080);
+    unsigned short port = std::rand() % (UINT16_MAX - 6000) + 6000;
+    addr_v4->sin_port = htons(port);
 
     test_file = (std::filesystem::temp_directory_path() / "test.")
                     .concat(std::format("{:05d}", test_counter++));

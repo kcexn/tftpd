@@ -101,7 +101,7 @@ static inline auto to_view(const char *str,
 }
 
 /** @brief Converts a string_view to a TFTP mode. */
-static inline auto to_mode(std::string_view mode) -> messages::mode_t
+static inline auto to_mode(std::string_view mode) noexcept -> messages::mode_t
 {
   using enum messages::mode_t;
   constexpr auto BUFSIZE = sizeof("netascii");

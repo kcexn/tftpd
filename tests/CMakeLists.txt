@@ -9,6 +9,10 @@ set(TEST_NAMES
   test_tftp_protocol
   test_tftp_server_static
   test_tftp_server
+  test_data_validation
+  test_ack_validation
+  test_out_of_blue_rrq
+  test_out_of_blue_wrq
 )
 
 foreach(TEST_NAME IN LISTS TEST_NAMES)
