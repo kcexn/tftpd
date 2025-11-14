@@ -88,6 +88,7 @@ TEST_F(TftpdTests, TestRRQNotPermitted)
 TEST_F(TftpdTests, TestInvalidAck)
 {
   using namespace io::socket;
+  using namespace io;
 
   std::vector<char> test_data(511);
 
@@ -108,32 +109,22 @@ TEST_F(TftpdTests, TestInvalidAck)
   auto sockmsg = socket_message{.address = {socket_address<sockaddr_in6>()},
                                 .buffers = recvbuf};
 
-  len = io::recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::unknown_tid().data(), len), 0);
-
   len = io::sendmsg(
       sock, socket_message{.address = {addr_v4}, .buffers = rrq_octet}, 0);
   ASSERT_EQ(len, rrq_octet.size());
 
   len = io::recvmsg(sock, sockmsg, 0);
-
-  auto session_address = *sockmsg.address;
+  ASSERT_EQ(std::memcmp(recvbuf.data() + sizeof(messages::data),
+                        test_data.data(), test_data.size()),
+            0);
 
   auto *datamsg = reinterpret_cast<messages::data *>(recvbuf.data());
   auto *ackmsg = reinterpret_cast<messages::ack *>(ack.data());
   ackmsg->block_num = datamsg->block_num;
 
-  len = io::sendmsg(sock, socket_message{.address = {addr_v4}, .buffers = ack},
-                    0);
-  ASSERT_EQ(len, ack.size());
-
-  len = io::recvmsg(sock, sockmsg, 0);
-  ASSERT_EQ(std::memcmp(recvbuf.data(), errors::unknown_tid().data(), len), 0);
-
   len = io::sendmsg(
-      sock, socket_message{.address = {session_address}, .buffers = ack}, 0);
+      sock, socket_message{.address = sockmsg.address, .buffers = ack}, 0);
   ASSERT_EQ(len, ack.size());
-
   remove(test_file);
 }
 

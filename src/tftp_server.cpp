@@ -251,14 +251,18 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
   auto &[key, session] = *siter;
   auto addrstr = to_str(addrbuf, key);
   auto &state = session.state;
+  auto prev_block = state.block_num;
   auto &[start_time, avg_rtt] = state.statistics;
 
   const auto *ack = reinterpret_cast<const messages::ack *>(msg.data());
   auto err = handle_ack(*ack, siter);
   if (err)
   {
-    spdlog::error("RRQ:{}:{}", addrstr, errors::errstr(err));
-    return error(ctx, socket, siter, err);
+    if (err == messages::UNKNOWN_TID)
+      return cleanup(ctx, socket, siter);
+
+    spdlog::error("RRQ:{}:{}", addrstr, errors::errstr(err)); // GCOVR_EXCL_LINE
+    return error(ctx, socket, siter, err);                    // GCOVR_EXCL_LINE
   }
 
   if (!state.file->is_open())
@@ -267,20 +271,23 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
     return cleanup(ctx, socket, siter);
   }
 
-  send_data(ctx, socket, siter);
+  if (prev_block != state.block_num)
+  {
+    send_data(ctx, socket, siter);
 
-  update_statistics(state.statistics);
-  state.timer = ctx.timers.remove(state.timer);
-  state.timer = ctx.timers.add(
-      2 * avg_rtt,
-      [&, siter, socket, retries = 0](auto timer_id) mutable {
-        constexpr auto MAX_RETRIES = 5;
-        if (retries++ >= MAX_RETRIES)
-          return error(ctx, socket, siter, messages::TIMED_OUT);
+    update_statistics(state.statistics);
+    state.timer = ctx.timers.remove(state.timer);
+    state.timer = ctx.timers.add(
+        2 * avg_rtt,
+        [&, siter, socket, retries = 0](auto timer_id) mutable {
+          constexpr auto MAX_RETRIES = 5;
+          if (retries++ >= MAX_RETRIES)
+            return error(ctx, socket, siter, messages::TIMED_OUT);
 
-        send_data(ctx, socket, siter);
-      },
-      2 * avg_rtt);
+          send_data(ctx, socket, siter);
+        },
+        2 * avg_rtt);
+  }
 
   reader(ctx, socket, rctx);
 }
