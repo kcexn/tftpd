@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -32,7 +32,7 @@ using namespace net::service;
 
 // Branch 1: msg.size() < sizeof(messages::ack) is TRUE
 // Expected: ILLEGAL_OPERATION error
-TEST_F(TftpServerTests, TestAckPacketTooSmall_3Bytes)
+TEST_F(TftpdTests, TestAckPacketTooSmall_3Bytes)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -84,7 +84,7 @@ TEST_F(TftpServerTests, TestAckPacketTooSmall_3Bytes)
 
 // Branch 1: msg.size() < sizeof(messages::ack) is TRUE (2 bytes)
 // Expected: ILLEGAL_OPERATION error
-TEST_F(TftpServerTests, TestAckPacketTooSmall_2Bytes)
+TEST_F(TftpdTests, TestAckPacketTooSmall_2Bytes)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -134,7 +134,7 @@ TEST_F(TftpServerTests, TestAckPacketTooSmall_2Bytes)
 
 // Branch 1: msg.size() < sizeof(messages::ack) is TRUE (1 byte)
 // Expected: ILLEGAL_OPERATION error
-TEST_F(TftpServerTests, TestAckPacketTooSmall_1Byte)
+TEST_F(TftpdTests, TestAckPacketTooSmall_1Byte)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -183,7 +183,7 @@ TEST_F(TftpServerTests, TestAckPacketTooSmall_1Byte)
 
 // Branch 1: msg.size() < sizeof(messages::ack) is TRUE (0 bytes)
 // Expected: ILLEGAL_OPERATION error
-TEST_F(TftpServerTests, TestAckPacketEmpty)
+TEST_F(TftpdTests, TestAckPacketEmpty)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -239,7 +239,7 @@ TEST_F(TftpServerTests, TestAckPacketEmpty)
 
 // Branch 2: msg.size() == sizeof(messages::ack) (exactly 4 bytes)
 // Expected: Normal processing (no error)
-TEST_F(TftpServerTests, TestAckPacketMinimalSize_Valid)
+TEST_F(TftpdTests, TestAckPacketMinimalSize_Valid)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -301,7 +301,7 @@ TEST_F(TftpServerTests, TestAckPacketMinimalSize_Valid)
 
 // Branch 2: msg.size() > sizeof(messages::ack) (more than 4 bytes)
 // Expected: Normal processing (ACK packets can be larger due to trailing data)
-TEST_F(TftpServerTests, TestAckPacketLargerThanMinimal_Valid)
+TEST_F(TftpdTests, TestAckPacketLargerThanMinimal_Valid)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -359,7 +359,7 @@ TEST_F(TftpServerTests, TestAckPacketLargerThanMinimal_Valid)
 
 // Branch 2: Standard ACK in normal RRQ transfer flow
 // Expected: Normal processing through multiple blocks
-TEST_F(TftpServerTests, TestAckPacketNormalSize_MultiBlock)
+TEST_F(TftpdTests, TestAckPacketNormalSize_MultiBlock)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;

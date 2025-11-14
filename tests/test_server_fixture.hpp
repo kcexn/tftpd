@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 // NOLINTBEGIN
 #pragma once
@@ -31,7 +31,7 @@
 using namespace tftp;
 
 static inline auto test_counter = std::atomic<std::uint16_t>();
-class TftpServerTests : public ::testing::Test {
+class TftpdTests : public ::testing::Test {
 protected:
   using tftp_server = net::service::context_thread<server>;
 
@@ -103,12 +103,12 @@ protected:
   std::vector<char> ack;
 };
 
-class TftpServerRRQOctetTests
-    : public TftpServerTests,
+class TftpdRRQOctetTests
+    : public TftpdTests,
       public ::testing::WithParamInterface<std::size_t> {};
 
-class TftpServerRRQNetAsciiTests : public TftpServerTests,
-                                   public ::testing::WithParamInterface<
-                                       std::pair<std::string, std::string>> {};
+class TftpdRRQNetAsciiTests : public TftpdTests,
+                              public ::testing::WithParamInterface<
+                                  std::pair<std::string, std::string>> {};
 #endif // TFTP_TEST_SERVER_FIXTURE_HPP
 // NOLINTEND

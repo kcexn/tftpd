@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -39,7 +39,7 @@ using namespace net::service;
 // Scenario: Client sends duplicate RRQ while transfer is in progress
 // Expected: Server ignores the duplicate RRQ and continues with existing
 // transfer
-TEST_F(TftpServerTests, TestOutOfBlueRRQ_DuplicateRRQDuringTransfer)
+TEST_F(TftpdTests, TestOutOfBlueRRQ_DuplicateRRQDuringTransfer)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -110,7 +110,7 @@ TEST_F(TftpServerTests, TestOutOfBlueRRQ_DuplicateRRQDuringTransfer)
 // Branch 1: state.opc != 0 is TRUE
 // Scenario: Client sends multiple duplicate RRQs rapidly
 // Expected: All duplicates are ignored, original transfer continues
-TEST_F(TftpServerTests, TestOutOfBlueRRQ_MultipleDuplicateRRQs)
+TEST_F(TftpdTests, TestOutOfBlueRRQ_MultipleDuplicateRRQs)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -175,7 +175,7 @@ TEST_F(TftpServerTests, TestOutOfBlueRRQ_MultipleDuplicateRRQs)
 // Branch 2: state.opc == 0 is TRUE
 // Scenario: Fresh RRQ for a new transfer (no existing session)
 // Expected: Server processes the RRQ and starts transfer
-TEST_F(TftpServerTests, TestOutOfBlueRRQ_FreshRRQ_NewSession)
+TEST_F(TftpdTests, TestOutOfBlueRRQ_FreshRRQ_NewSession)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -215,7 +215,7 @@ TEST_F(TftpServerTests, TestOutOfBlueRRQ_FreshRRQ_NewSession)
 // Scenario: RRQ after a previous transfer has completed
 // Expected: Server processes the new RRQ (state.opc was reset to 0 after
 // cleanup)
-TEST_F(TftpServerTests, TestOutOfBlueRRQ_FreshRRQ_AfterCompletedTransfer)
+TEST_F(TftpdTests, TestOutOfBlueRRQ_FreshRRQ_AfterCompletedTransfer)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -304,7 +304,7 @@ TEST_F(TftpServerTests, TestOutOfBlueRRQ_FreshRRQ_AfterCompletedTransfer)
 // Branch 2: state.opc == 0 is TRUE
 // Scenario: Multiple sequential RRQs from different clients (different sockets)
 // Expected: Each RRQ creates a new session and is processed independently
-TEST_F(TftpServerTests, TestOutOfBlueRRQ_FreshRRQ_MultipleClients)
+TEST_F(TftpdTests, TestOutOfBlueRRQ_FreshRRQ_MultipleClients)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;

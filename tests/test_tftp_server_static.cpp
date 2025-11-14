@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * TFTP is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * TFTP is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with TFTP.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -27,7 +27,7 @@ using namespace tftp;
 using enum messages::mode_t;
 using enum messages::opcode_t;
 
-TEST(TftpServerStaticTests, TestToStr)
+TEST(TftpdStaticTests, TestToStr)
 {
   auto buf = std::array<char, INET6_ADDRSTRLEN + ADDR_BUFLEN>{};
   auto addr_v6 = socket_address<sockaddr_in6>{};
@@ -53,24 +53,24 @@ TEST(TftpServerStaticTests, TestToStr)
   EXPECT_EQ(addrstr, "127.0.0.1:8080");
 }
 
-class TftpServerStaticModeTest
+class TftpdStaticModeTest
     : public ::testing::TestWithParam<
           std::pair<std::string_view, std::uint8_t>> {};
 
-TEST_P(TftpServerStaticModeTest, TestToMode)
+TEST_P(TftpdStaticModeTest, TestToMode)
 {
   auto [str, mode] = GetParam();
   ASSERT_EQ(to_mode(str), mode);
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TftpServerStaticTests, TftpServerStaticModeTest,
+    TftpdStaticTests, TftpdStaticModeTest,
     ::testing::Values(std::make_pair("netascii", messages::mode_t::NETASCII),
                       std::make_pair("mail", messages::mode_t::MAIL),
                       std::make_pair("octet", messages::mode_t::OCTET),
                       std::make_pair("unknown", messages::mode_t{0})));
 
-TEST(TftpServerStaticTests, TestParseRRQ)
+TEST(TftpdStaticTests, TestParseRRQ)
 {
   auto request = std::vector<char>();
 

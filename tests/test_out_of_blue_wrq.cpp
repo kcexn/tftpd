@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -39,7 +39,7 @@ using namespace net::service;
 // Scenario: Client sends duplicate WRQ while upload is in progress
 // Expected: Server ignores the duplicate WRQ and continues with existing
 // transfer
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_DuplicateWRQDuringTransfer)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_DuplicateWRQDuringTransfer)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -104,7 +104,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_DuplicateWRQDuringTransfer)
 // Branch 1: state.opc != 0 is TRUE
 // Scenario: Client sends multiple duplicate WRQs rapidly
 // Expected: All duplicates are ignored, original upload continues
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_MultipleDuplicateWRQs)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_MultipleDuplicateWRQs)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -161,7 +161,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_MultipleDuplicateWRQs)
 // Branch 1: state.opc != 0 is TRUE
 // Scenario: WRQ sent while an RRQ is in progress (same client socket)
 // Expected: Duplicate WRQ is ignored, RRQ continues
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_WRQDuringRRQTransfer)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_WRQDuringRRQTransfer)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -223,7 +223,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_WRQDuringRRQTransfer)
 // Branch 2: state.opc == 0 is TRUE
 // Scenario: Fresh WRQ for a new upload (no existing session)
 // Expected: Server processes the WRQ and starts upload
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_NewSession)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_FreshWRQ_NewSession)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -254,7 +254,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_NewSession)
 // Scenario: WRQ after a previous upload has completed
 // Expected: Server processes the new WRQ (state.opc was reset to 0 after
 // cleanup)
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_AfterCompletedTransfer)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_FreshWRQ_AfterCompletedTransfer)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -333,7 +333,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_AfterCompletedTransfer)
 // Branch 2: state.opc == 0 is TRUE
 // Scenario: Multiple WRQs from different clients (different sockets)
 // Expected: Each WRQ creates a new session and is processed independently
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_MultipleClients)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_FreshWRQ_MultipleClients)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;
@@ -398,7 +398,7 @@ TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_MultipleClients)
 // Branch 2: state.opc == 0 is TRUE
 // Scenario: Complete upload with multiple blocks
 // Expected: WRQ is processed and full upload succeeds
-TEST_F(TftpServerTests, TestOutOfBlueWRQ_FreshWRQ_MultiBlockUpload)
+TEST_F(TftpdTests, TestOutOfBlueWRQ_FreshWRQ_MultiBlockUpload)
 {
   using enum messages::opcode_t;
   using namespace std::filesystem;

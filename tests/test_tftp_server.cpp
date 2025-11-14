@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -20,7 +20,7 @@
 using namespace io::socket;
 using namespace net::service;
 
-TEST_F(TftpServerTests, TestFileNotFound)
+TEST_F(TftpdTests, TestFileNotFound)
 {
   using namespace io::socket;
 
@@ -38,7 +38,7 @@ TEST_F(TftpServerTests, TestFileNotFound)
             0);
 }
 
-TEST_F(TftpServerTests, TestInvalidRRQ)
+TEST_F(TftpdTests, TestInvalidRRQ)
 {
   using namespace io::socket;
 
@@ -58,7 +58,7 @@ TEST_F(TftpServerTests, TestInvalidRRQ)
       std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestRRQNotPermitted)
+TEST_F(TftpdTests, TestRRQNotPermitted)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -85,7 +85,7 @@ TEST_F(TftpServerTests, TestRRQNotPermitted)
   ASSERT_TRUE(remove(test_file));
 }
 
-TEST_F(TftpServerTests, TestInvalidAck)
+TEST_F(TftpdTests, TestInvalidAck)
 {
   using namespace io::socket;
 
@@ -137,7 +137,7 @@ TEST_F(TftpServerTests, TestInvalidAck)
   remove(test_file);
 }
 
-TEST_F(TftpServerTests, TestRRQTimeout)
+TEST_F(TftpdTests, TestRRQTimeout)
 {
   using namespace io::socket;
   using namespace io;
@@ -214,7 +214,7 @@ TEST_F(TftpServerTests, TestRRQTimeout)
   remove(test_file);
 }
 
-TEST_F(TftpServerTests, TestIllegalOp)
+TEST_F(TftpdTests, TestIllegalOp)
 {
   using namespace io::socket;
   using namespace io;
@@ -249,7 +249,7 @@ TEST_F(TftpServerTests, TestIllegalOp)
       std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestMailRRQ)
+TEST_F(TftpdTests, TestMailRRQ)
 {
   using namespace io::socket;
   using namespace io;
@@ -269,7 +269,7 @@ TEST_F(TftpServerTests, TestMailRRQ)
       std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestDuplicateRRQ)
+TEST_F(TftpdTests, TestDuplicateRRQ)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -316,7 +316,7 @@ TEST_F(TftpServerTests, TestDuplicateRRQ)
   remove(test_file);
 }
 
-TEST_P(TftpServerRRQOctetTests, TestRRQ)
+TEST_P(TftpdRRQOctetTests, TestRRQ)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -358,7 +358,7 @@ TEST_P(TftpServerRRQOctetTests, TestRRQ)
   remove(test_file);
 }
 
-TEST_P(TftpServerRRQNetAsciiTests, TestNetAsciiRRQ)
+TEST_P(TftpdRRQNetAsciiTests, TestNetAsciiRRQ)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -409,7 +409,7 @@ TEST_P(TftpServerRRQNetAsciiTests, TestNetAsciiRRQ)
   remove(test_file);
 }
 
-TEST_F(TftpServerTests, TestWRQ)
+TEST_F(TftpdTests, TestWRQ)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -483,7 +483,7 @@ TEST_F(TftpServerTests, TestWRQ)
   remove(test_file);
 }
 
-TEST_F(TftpServerTests, TestWRQDuplicateData)
+TEST_F(TftpdTests, TestWRQDuplicateData)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -555,7 +555,7 @@ TEST_F(TftpServerTests, TestWRQDuplicateData)
   remove(test_file);
 }
 
-TEST_F(TftpServerTests, TestWRQTimeout)
+TEST_F(TftpdTests, TestWRQTimeout)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -578,7 +578,7 @@ TEST_F(TftpServerTests, TestWRQTimeout)
   EXPECT_EQ(std::memcmp(buf.data(), errors::timed_out().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestWRQTimeoutAfterData)
+TEST_F(TftpdTests, TestWRQTimeoutAfterData)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -626,7 +626,7 @@ TEST_F(TftpServerTests, TestWRQTimeoutAfterData)
   EXPECT_EQ(std::memcmp(buf.data(), errors::timed_out().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestInvalidWRQ)
+TEST_F(TftpdTests, TestInvalidWRQ)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -648,7 +648,7 @@ TEST_F(TftpServerTests, TestInvalidWRQ)
       std::memcmp(recvbuf.data(), errors::illegal_operation().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestWRQNotPermitted)
+TEST_F(TftpdTests, TestWRQNotPermitted)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -670,7 +670,7 @@ TEST_F(TftpServerTests, TestWRQNotPermitted)
             0);
 }
 
-TEST_F(TftpServerTests, TestWRQMail)
+TEST_F(TftpdTests, TestWRQMail)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -690,7 +690,7 @@ TEST_F(TftpServerTests, TestWRQMail)
   EXPECT_EQ(std::memcmp(recvbuf.data(), errors::no_such_user().data(), len), 0);
 }
 
-TEST_F(TftpServerTests, TestWRQUnknownTID)
+TEST_F(TftpdTests, TestWRQUnknownTID)
 {
   using namespace io::socket;
   using namespace std::filesystem;
@@ -741,7 +741,7 @@ TEST_F(TftpServerTests, TestWRQUnknownTID)
   remove(test_file);
 }
 
-INSTANTIATE_TEST_SUITE_P(TftpRRQTests, TftpServerRRQOctetTests,
+INSTANTIATE_TEST_SUITE_P(TftpRRQTests, TftpdRRQOctetTests,
                          ::testing::Values(511, 512, 513, 1023, 1024, 1025));
 
 auto netascii_lines(std::size_t n) -> std::string
@@ -754,7 +754,7 @@ auto netascii_lines(std::size_t n) -> std::string
   return lines;
 }
 INSTANTIATE_TEST_SUITE_P(
-    TftpRRQTests, TftpServerRRQNetAsciiTests,
+    TftpRRQTests, TftpdRRQNetAsciiTests,
     ::testing::Values(std::make_pair("Hello, world!\r\n", "Hello, world!\n"),
                       std::make_pair("Hello, world!\r\n", "Hello, world!\r\n"),
                       std::make_pair(netascii_lines(512),

@@ -1,17 +1,17 @@
 /* Copyright (C) 2025 Kevin Exton (kevin.exton@pm.me)
  *
- * Cloudbus is free software: you can redistribute it and/or modify
+ * tftpd is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
  * by the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * Cloudbus is distributed in the hope that it will be useful,
+ * tftpd is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with Cloudbus.  If not, see <https://www.gnu.org/licenses/>.
+ * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 // NOLINTBEGIN
@@ -31,7 +31,7 @@ using namespace net::service;
 
 // Branch 1: buf.size() < sizeof(messages::data) is TRUE, MSG_TRUNC is FALSE
 // Expected: ILLEGAL_OPERATION error
-TEST_F(TftpServerTests, TestDataPacketTooSmall_BranchA)
+TEST_F(TftpdTests, TestDataPacketTooSmall_BranchA)
 {
   using enum messages::opcode_t;
 
@@ -70,7 +70,7 @@ TEST_F(TftpServerTests, TestDataPacketTooSmall_BranchA)
 
 // Branch 2: buf.size() < sizeof(messages::data) is TRUE, MSG_TRUNC is TRUE
 // Expected: ILLEGAL_OPERATION error (first condition is sufficient)
-TEST_F(TftpServerTests, TestDataPacketTooSmallAndTruncated_BranchB)
+TEST_F(TftpdTests, TestDataPacketTooSmallAndTruncated_BranchB)
 {
   using enum messages::opcode_t;
 
@@ -108,7 +108,7 @@ TEST_F(TftpServerTests, TestDataPacketTooSmallAndTruncated_BranchB)
 // truncated This tests the MSG_TRUNC flag scenario Note: MSG_TRUNC is set by
 // the kernel when the buffer provided to recvmsg is too small We can't directly
 // inject MSG_TRUNC in integration tests, but we test with minimal buffer
-TEST_F(TftpServerTests, TestDataPacketMinimalSize_BranchC)
+TEST_F(TftpdTests, TestDataPacketMinimalSize_BranchC)
 {
   using enum messages::opcode_t;
 
@@ -150,7 +150,7 @@ TEST_F(TftpServerTests, TestDataPacketMinimalSize_BranchC)
 
 // Branch 4: buf.size() >= sizeof(messages::data) AND MSG_TRUNC is FALSE
 // Expected: Normal processing (no error)
-TEST_F(TftpServerTests, TestDataPacketValidSize_BranchD)
+TEST_F(TftpdTests, TestDataPacketValidSize_BranchD)
 {
   using enum messages::opcode_t;
 
@@ -197,7 +197,7 @@ TEST_F(TftpServerTests, TestDataPacketValidSize_BranchD)
 }
 
 // Edge case: buf.size() == 0 (empty packet)
-TEST_F(TftpServerTests, TestDataPacketEmpty_EdgeCase)
+TEST_F(TftpdTests, TestDataPacketEmpty_EdgeCase)
 {
   using enum messages::opcode_t;
 
@@ -240,7 +240,7 @@ TEST_F(TftpServerTests, TestDataPacketEmpty_EdgeCase)
 }
 
 // Edge case: buf.size() == 1 (one byte only)
-TEST_F(TftpServerTests, TestDataPacketOneByte_EdgeCase)
+TEST_F(TftpdTests, TestDataPacketOneByte_EdgeCase)
 {
   using enum messages::opcode_t;
 
