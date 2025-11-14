@@ -16,16 +16,7 @@ CPMAddPackage("gh:kcexn/cppnet@0.7.5")
 # Add spdlog as a dependency.
 CPMAddPackage("gh:gabime/spdlog@1.16.0")
 
-# Enable testing by default if this is a top-level project or
-# in submodules if the project has explicitly set BUILD_TESTING
-# by including CTest.
-if ((CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME) OR BUILD_TESTING)
-	set(TFTP_BUILD_TESTING_DEFAULT ON)
-else()
-	set(TFTP_BUILD_TESTING_DEFAULT OFF)
-endif()
-
-option(TFTP_BUILD_TESTING "Enable testing." ${TFTP_BUILD_TESTING_DEFAULT})
+option(TFTP_BUILD_TESTING "Enable testing." OFF)
 if (TFTP_BUILD_TESTING)
   # Add GoogleTest
   message(STATUS "Configure tests with GoogleTest")
@@ -57,3 +48,7 @@ endif()
 
 # Add targets
 add_subdirectory(src)
+
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+set(CPACK_SOURCE_IGNORE_FILES "/[^R].*\\\\.md;/\\\\..*;/.*\\\\.json;/tests/.+;/docs/;/build/")
+include(CPack)

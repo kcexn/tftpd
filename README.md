@@ -104,6 +104,12 @@ cmake --preset debug
 cmake --build build/debug
 ctest --test-dir build/debug
 
+# Run a single test executable
+./build/debug/bin/test_tftp_server
+
+# Run specific test by name pattern
+./build/debug/bin/test_tftp_server --gtest_filter=TftpServer.HandleRRQ
+
 # Generate code coverage report
 cmake --build build/debug --target coverage
 # View: build/debug/coverage/index.html
@@ -113,8 +119,9 @@ cmake --build build/debug --target coverage
 
 - **stdexec** - NVIDIA's sender/receiver async framework
 - **AsyncBerkeley** - Async Berkeley sockets interface
-- **cppnet** (cloudbus-net) - Networking utilities
-- **spdlog** - Fast C++ logging library
+- **cppnet** (cloudbus-net) v0.7.5 - Networking utilities
+- **spdlog** v1.16.0 - Fast C++ logging library
+- **GoogleTest** v1.17.0 - Testing framework (testing only)
 
 All dependencies are automatically fetched via CPM.cmake during build.
 

@@ -11,7 +11,8 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "CMAKE_CXX_FLAGS": "-Wall -Wpedantic -std=c++20",
-                "TFTP_BUILD_DOCS": "ON"
+                "TFTP_BUILD_DOCS": "ON",
+                "TFTP_BUILD_TESTING": "ON"
             }
         },
         {
@@ -24,7 +25,6 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_CXX_FLAGS": "-flto -Wall -Wpedantic -DNDEBUG -O3 -mtune=native -march=native -std=c++20",
                 "CMAKE_EXE_LINKER_FLAGS": "-flto",
-                "TFTP_BUILD_TESTING": "OFF",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "OFF"
             }
         }
@@ -56,10 +56,20 @@
     ],
     "packagePresets": [
         {
-            "name": "release",
+            "name": "source release",
+            "description": "Source release package",
+            "displayName": "Source Release",
+            "configurePreset": "release",
+            "configFile": "CPackSourceConfig.cmake",
+            "generators": ["TGZ"]
+        },
+        {
+            "name": "binary release",
             "description": "Binary release package",
-            "displayName": "Release",
-            "configurePreset": "release"
+            "displayName": "Binary Release",
+            "configurePreset": "release",
+            "configFile": "CPackConfig.cmake",
+            "generators": ["STGZ", "TGZ"]
         }
     ]
 }
