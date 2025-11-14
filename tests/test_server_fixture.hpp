@@ -103,9 +103,8 @@ protected:
   std::vector<char> ack;
 };
 
-class TftpdRRQOctetTests
-    : public TftpdTests,
-      public ::testing::WithParamInterface<std::size_t> {};
+class TftpdRRQOctetTests : public TftpdTests,
+                           public ::testing::WithParamInterface<std::size_t> {};
 
 class TftpdRRQNetAsciiTests : public TftpdTests,
                               public ::testing::WithParamInterface<

@@ -22,7 +22,7 @@
 #define TFTP_SERVER_HPP
 #include "tftp.hpp"
 
-#include <net/service/async_udp_service.hpp>
+#include <net/cppnet.hpp>
 /** @namespace For top-level tftp services. */
 namespace tftp {
 /** @brief TFTP max buffer allocation.. */

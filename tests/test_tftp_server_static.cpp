@@ -53,9 +53,8 @@ TEST(TftpdStaticTests, TestToStr)
   EXPECT_EQ(addrstr, "127.0.0.1:8080");
 }
 
-class TftpdStaticModeTest
-    : public ::testing::TestWithParam<
-          std::pair<std::string_view, std::uint8_t>> {};
+class TftpdStaticModeTest : public ::testing::TestWithParam<
+                                std::pair<std::string_view, std::uint8_t>> {};
 
 TEST_P(TftpdStaticModeTest, TestToMode)
 {
