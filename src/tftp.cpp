@@ -20,44 +20,92 @@
 #include "tftp/tftp.hpp"
 #include "tftp/filesystem.hpp"
 namespace tftp {
-/** @brief Inserts characters from buf to buffer while accomodating netascii. */
+/**
+ * @brief Inserts data into a buffer, handling NETASCII conversion.
+ * @details This function appends data from a source span (`buf`) to a
+ * destination vector (`buffer`). If the transfer mode is `NETASCII`, it
+ * performs line-ending conversions as specified by the TFTP protocol.
+ *
+ *          NETASCII Conversion Rules:
+ *          - Bare carriage returns (`\r`) are converted to `\r\0`.
+ *          - Bare line feeds (`\n`) are converted to `\r\n`.
+ *          - A `\r\n` sequence in the input is handled correctly to produce a
+ *            `\r\n` sequence in the output buffer by observing that a `\n`
+ *            is preceded by a `\r\0` from a previous conversion.
+ *          - Bare null bytes (`\0`) in the input are skipped to avoid ambiguity
+ *            with the `\r\0` sequence.
+ *
+ * @param[in,out] buffer The destination buffer to which data will be inserted.
+ * @param[in]     buf    A span of characters representing the source data.
+ * @param[in]     mode   The TFTP transfer mode (e.g., `NETASCII` or `OCTET`).
+ */
 static inline auto insert_data(std::vector<char> &buffer,
                                std::span<const char> buf,
                                std::uint8_t mode) -> void
 {
   using enum messages::mode_t;
 
-  const auto *end = buf.data() + buf.size();
-  for (const auto *get = buf.data(); get != end; ++get)
+  if (mode != NETASCII)
   {
-    if (mode == NETASCII)
-    {
-      if (*get == '\0')
-        continue;
+    buffer.insert(buffer.end(), buf.begin(), buf.end());
+    return;
+  }
 
-      if (*get == '\n')
+  // NETASCII processing.
+  for (const auto chr : buf)
+  {
+    // Skip bare \0 bytes so as to not confuse \r\0 handling.
+    if (chr == '\0')
+      continue;
+
+    if (chr == '\n')
+    {
+      if (buffer.size() > sizeof(messages::data) && buffer.back() == '\0')
       {
-        if (buffer.size() > sizeof(messages::data) && buffer.back() == '\0')
-        {
-          buffer.pop_back();
-        }
-        else
-        {
-          buffer.push_back('\r');
-        }
+        // If the previous byte is \0 then it must be from a \r\0 sequence.
+        buffer.pop_back();
+      }
+      else
+      {
+        // Otherwise this is a bare \n.
+        buffer.push_back('\r');
       }
     }
 
-    buffer.push_back(*get);
+    buffer.push_back(chr);
 
-    if (mode == NETASCII && *get == '\r')
+    // Bare \r must be followed by a \0.
+    if (chr == '\r')
     {
       buffer.push_back('\0');
     }
   }
 }
 
-/** @brief Prepares the next block to send. */
+/**
+ * @brief Prepares the next data block to be sent for a file transfer session.
+ * @details This function constructs the next data packet to be sent to the
+ * client.
+ *
+ * The session buffer is reused for each packet. If a previous operation (like
+ * NETASCII conversion) resulted in more data than could fit in a single packet,
+ * that "overflow" data is present at the end of the buffer. This function moves
+ * that overflow data to the beginning of the buffer to be sent in the current
+ * packet. The buffer layout is conceptualized as:
+ * `[header][512 bytes data][overflow]`.
+ *
+ * To prevent reallocations, the buffer capacity is reserved to hold a full data
+ * packet plus space for NETASCII expansion. The buffer is resized to at least
+ * hold the DATA packet header.
+ *
+ * New file data is read into a temporary buffer. This data is then processed
+ * for NETASCII conversion (if required for the session's mode) and appended to
+ * the session buffer after the header and any overflow data.
+ *
+ * @param siter An iterator pointing to the current session in the sessions map.
+ * @return std::uint16_t Returns 0 on success. If there is a file read error, it
+ * returns `messages::ACCESS_VIOLATION`.
+ */
 static inline auto send_next(iterator_t siter) -> std::uint16_t
 {
   using enum messages::opcode_t;
@@ -66,37 +114,35 @@ static inline auto send_next(iterator_t siter) -> std::uint16_t
   auto &state = session.state;
   auto &buffer = state.buffer;
 
-  state.block_num += 1; // block_num wraps back to 0.
+  state.block_num += 1; // block_num wraps on overflow.
 
-  // Size the buffer for a complete TFTP DATA message and enough
-  // extra to handle netascii processing.
   buffer.reserve(messages::DATAMSG_MAXLEN + messages::DATALEN);
   if (buffer.size() < sizeof(messages::data))
     buffer.resize(sizeof(messages::data));
 
-  auto put = buffer.begin();
+  auto data_start = buffer.begin() + sizeof(messages::data);
 
-  // Set the message headers.
-  auto *msg = reinterpret_cast<messages::data *>(std::addressof(*put));
+  if (buffer.size() > messages::DATAMSG_MAXLEN)
+  {
+    auto overflow_start = data_start + messages::DATALEN;
+    data_start = std::copy(overflow_start, buffer.end(), data_start);
+  }
+
+  data_start = buffer.erase(data_start, buffer.end());
+
+  auto *msg = reinterpret_cast<messages::data *>(buffer.data());
   msg->opc = htons(DATA);
   msg->block_num = htons(state.block_num);
 
-  put += sizeof(*msg);
-
-  if (buffer.size() > messages::DATAMSG_MAXLEN)
-    put = std::copy(put + messages::DATALEN, buffer.end(), put);
-
-  buffer.erase(put, buffer.end());
-  auto size =
+  auto read_size =
       static_cast<std::streamsize>(messages::DATAMSG_MAXLEN - buffer.size());
-
-  // Read the next file chunk into the RRQ buffer.
-  auto buf = std::array<char, messages::DATALEN>();
-  state.file->read(buf.data(), size);
+  auto read_buf = std::array<char, messages::DATALEN>();
+  state.file->read(read_buf.data(), read_size);
   if (state.file->bad()) [[unlikely]]
     return messages::ACCESS_VIOLATION; // GCOVR_EXCL_LINE
 
-  insert_data(buffer, std::span(buf.data(), state.file->gcount()), state.mode);
+  insert_data(buffer, std::span(read_buf.data(), state.file->gcount()),
+              state.mode);
   return 0;
 }
 
@@ -201,7 +247,7 @@ auto handle_data(const messages::data *data, std::size_t len,
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   const auto *payload = reinterpret_cast<const char *>(data) + sizeof(*data);
   len -= sizeof(*data);
-  block_num += 1;
+  block_num = next_block;
 
   // Write the data to the file.
   auto &file = session.state.file;
