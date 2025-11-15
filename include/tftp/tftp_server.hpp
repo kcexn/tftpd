@@ -49,26 +49,26 @@ public:
   {}
 
   /**
-   * @brief Services the incoming socket_message.
+   * @brief Dispatches the TFTP message to the right handler.
    * @param ctx The asynchronous context of the message.
    * @param socket The socket that the message was read from.
    * @param rctx The read context that manages the read buffer lifetime.
    * @param buf The data buffer read off the socket.
    * @param siter An iterator pointing to the demultiplexed session.
    */
-  auto service(async_context &ctx, const socket_dialog &socket,
-               const std::shared_ptr<read_context> &rctx,
-               std::span<const std::byte> buf, iterator_t siter) -> void;
+  auto tftp_route(async_context &ctx, const socket_dialog &socket,
+                  const std::shared_ptr<read_context> &rctx,
+                  std::span<const std::byte> buf, iterator_t siter) -> void;
   /**
-   * @brief Receives the bytes emitted by the service_base reader.
+   * @brief Services the TFTP messages emitted by the server.
    * @param ctx The asynchronous context of the message.
    * @param socket The socket that the message was read from.
    * @param rctx The read context that manages the read buffer lifetime.
    * @param buf The bytes that were read from the socket.
    */
-  auto operator()(async_context &ctx, const socket_dialog &socket,
-                  const std::shared_ptr<read_context> &rctx,
-                  std::span<const std::byte> buf) -> void;
+  auto service(async_context &ctx, const socket_dialog &socket,
+               const std::shared_ptr<read_context> &rctx,
+               std::span<const std::byte> buf) -> void;
 
 private:
   /** @brief The TFTP sessions. */

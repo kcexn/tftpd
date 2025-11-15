@@ -289,7 +289,7 @@ auto server::ack(async_context &ctx, const socket_dialog &socket,
         2 * avg_rtt);
   }
 
-  reader(ctx, socket, rctx);
+  submit_recv(ctx, socket, rctx);
 }
 
 auto server::rrq(async_context &ctx, const socket_dialog &socket,
@@ -307,7 +307,7 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
 
   // Out-of-the-blue packet, already a session running on this socket.
   if (state.opc != 0)
-    return reader(ctx, socket, rctx);
+    return submit_recv(ctx, socket, rctx);
 
   auto addrstr = to_str(addrbuf, key);
   spdlog::info("RRQ:{}:New RRQ.", addrstr);
@@ -338,7 +338,7 @@ auto server::rrq(async_context &ctx, const socket_dialog &socket,
       },
       2 * avg_rtt);
 
-  reader(ctx, socket, rctx);
+  submit_recv(ctx, socket, rctx);
 }
 
 auto server::send_data(async_context &ctx, const socket_dialog &socket,
@@ -374,7 +374,7 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
 
   // Out-of-the-blue packet, already a session running on this socket.
   if (session.state.opc != 0)
-    return reader(ctx, socket, rctx);
+    return submit_recv(ctx, socket, rctx);
 
   auto addrstr = to_str(addrbuf, key);
   spdlog::info("WRQ:{}:New WRQ.", addrstr);
@@ -399,7 +399,7 @@ auto server::wrq(async_context &ctx, const socket_dialog &socket,
     return error(ctx, socket, siter, TIMED_OUT);
   });
 
-  reader(ctx, socket, rctx);
+  submit_recv(ctx, socket, rctx);
 }
 
 auto server::data(async_context &ctx, const socket_dialog &socket,
@@ -451,7 +451,7 @@ auto server::data(async_context &ctx, const socket_dialog &socket,
     }
   }
 
-  reader(ctx, socket, rctx);
+  submit_recv(ctx, socket, rctx);
 }
 
 /** @brief Acks the current block of data to the client.. */
@@ -512,9 +512,10 @@ auto server::cleanup(async_context &ctx, const socket_dialog &socket,
   sessions_.erase(siter);
 }
 
-auto server::service(async_context &ctx, const socket_dialog &socket,
-                     const std::shared_ptr<read_context> &rctx,
-                     std::span<const std::byte> buf, iterator_t siter) -> void
+auto server::tftp_route(async_context &ctx, const socket_dialog &socket,
+                        const std::shared_ptr<read_context> &rctx,
+                        std::span<const std::byte> buf,
+                        iterator_t siter) -> void
 {
   using enum messages::opcode_t;
   using enum messages::error_t;
@@ -542,9 +543,9 @@ auto server::service(async_context &ctx, const socket_dialog &socket,
   }
 }
 
-auto server::operator()(async_context &ctx, const socket_dialog &socket,
-                        const std::shared_ptr<read_context> &rctx,
-                        std::span<const std::byte> buf) -> void
+auto server::service(async_context &ctx, const socket_dialog &socket,
+                     const std::shared_ptr<read_context> &rctx,
+                     std::span<const std::byte> buf) -> void
 {
   using enum messages::opcode_t;
   using enum messages::error_t;
@@ -564,13 +565,13 @@ auto server::operator()(async_context &ctx, const socket_dialog &socket,
   {
     auto &[key, session] = *siter;
     if (session.state.socket == socket)
-      return service(ctx, socket, rctx, buf, siter);
+      return tftp_route(ctx, socket, rctx, buf, siter);
   }
 
   siter = sessions_.emplace(address, session());
-  service(ctx, ctx.poller.emplace(address->sin6_family, SOCK_DGRAM, 0),
-          std::make_shared<read_context>(), buf, siter);
-  reader(ctx, socket, rctx);
+  tftp_route(ctx, ctx.poller.emplace(address->sin6_family, SOCK_DGRAM, 0),
+             std::make_shared<read_context>(), buf, siter);
+  submit_recv(ctx, socket, rctx);
 }
 #endif // TFTP_SERVER_STATIC_TEST
 } // namespace tftp
