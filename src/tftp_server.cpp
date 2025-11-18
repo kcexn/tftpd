@@ -160,7 +160,7 @@ parse_request(std::span<const std::byte> msg) -> messages::request
 
 static inline auto
 clamped_exp_weighted_average(milliseconds curr,
-                             milliseconds prev) -> milliseconds
+                             milliseconds prev) noexcept -> milliseconds
 {
   auto avg = prev * 3 / 4 + curr / 4;
   avg = std::min(avg, session::TIMEOUT_MAX);
@@ -229,7 +229,7 @@ auto server::error(async_context &ctx, const socket_dialog &socket,
   if (msg.buffers)
   {
     sender auto sendmsg = io::sendmsg(socket, msg, 0) |
-                          then([](auto &&len) {}) |
+                          then([](auto &&len) noexcept {}) |
                           upon_error([](auto &&error) {}); // GCOVR_EXCL_LINE
     ctx.scope.spawn(std::move(sendmsg));
   }
@@ -354,7 +354,7 @@ auto server::send_data(async_context &ctx, const socket_dialog &socket,
   sender auto sendmsg =
       io::sendmsg(socket, socket_message{.address = {key}, .buffers = span},
                   0) |
-      then([](auto &&) {}) | upon_error([](auto &&) {});
+      then([](auto &&) noexcept {}) | upon_error([](auto &&) noexcept {});
 
   ctx.scope.spawn(std::move(sendmsg));
 }
@@ -475,7 +475,7 @@ auto server::send_ack(async_context &ctx, const socket_dialog &socket,
   sender auto sendmsg =
       io::sendmsg(socket, socket_message{.address = {key}, .buffers = buffer},
                   0) |
-      then([](auto &&) {}) | upon_error([](auto &&) {});
+      then([](auto &&) noexcept {}) | upon_error([](auto &&) noexcept {});
 
   ctx.scope.spawn(std::move(sendmsg));
 }
