@@ -30,7 +30,7 @@
 using namespace net::service;
 using namespace tftp;
 
-using tftp_server = context_thread<server>;
+using tftp_server = basic_context_thread<server>;
 
 static constexpr unsigned short PORT = 69;
 static constexpr char const *const usage =
@@ -203,7 +203,6 @@ auto main(int argc, char *argv[]) -> int
 
     spdlog::info("TFTP server starting on UDP port {}.", conf->port);
     server.start(address);
-    server.state.wait(server.PENDING);
     server.state.wait(server.STARTED);
 
     spdlog::info("TFTP server stopped.");

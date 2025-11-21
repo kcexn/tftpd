@@ -33,7 +33,7 @@ using namespace tftp;
 static inline auto test_counter = std::atomic<std::uint16_t>();
 class TftpdTests : public ::testing::Test {
 protected:
-  using tftp_server = net::service::context_thread<server>;
+  using tftp_server = net::service::basic_context_thread<server>;
 
   auto SetUp() noexcept -> void override
   {
