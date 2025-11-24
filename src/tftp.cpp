@@ -172,12 +172,16 @@ auto handle_request(messages::request req, iterator_t siter) -> std::uint16_t
         std::format("{:%Y%m%d_%H%M%S}", std::chrono::system_clock::now());
   }
 
-  auto openmode = (req.opc == WRQ)
-                      ? std::ios::out | std::ios::binary | std::ios::trunc
-                      : std::ios::in | std::ios::binary;
-
   auto err = std::error_code();
-  state.file = filesystem::tmpfile_from(state.target, openmode, state.tmp, err);
+  if (req.opc == WRQ)
+  {
+    state.file = filesystem::open_write(state.target, state.tmp, err);
+  }
+  else
+  {
+    state.file = filesystem::open_read(state.target, err);
+  }
+
   if (!state.file)
   {
     if (err == std::errc::no_such_file_or_directory)

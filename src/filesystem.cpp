@@ -14,8 +14,8 @@
  * along with tftpd.  If not, see <https://www.gnu.org/licenses/>.
  */
 /**
- * @file file_manager.cpp
- * @brief This file implements a file manager.
+ * @file filesystem.cpp
+ * @brief This file implements filesystem utilities.
  */
 #include "tftp/filesystem.hpp"
 
@@ -73,32 +73,44 @@ auto touch(const std::filesystem::path &file) -> std::error_code
 }
 // NOLINTEND(cppcoreguidelines-owning-memory)
 
-/** @brief Copies the src file into a new temporary file. */
-auto tmpfile_from(const std::filesystem::path &copy_from,
-                  const std::ios::openmode &mode,
-                  std::filesystem::path &tmppath,
-                  std::error_code &err) -> std::shared_ptr<std::fstream>
+auto open_read(const std::filesystem::path &file,
+               std::error_code &err) -> std::shared_ptr<std::fstream>
 {
   err.clear();
-  if ((mode & std::ios::out) && !std::filesystem::exists(copy_from, err) &&
-      (err = touch(copy_from)))
-  {
-    return {};
-  }
-
-  auto tmp = tmpname();
-  if (!std::filesystem::copy_file(copy_from, tmp, err))
-    return {};
-
-  auto fstream = std::make_shared<std::fstream>(tmp, mode);
+  auto fstream =
+      std::make_shared<std::fstream>(file, std::ios::in | std::ios::binary);
   if (!fstream->is_open())
   {
-    std::filesystem::remove(tmp);
+    if (!std::filesystem::exists(file, err))
+    {
+      err = std::make_error_code(std::errc::no_such_file_or_directory);
+      return {};
+    }
+
     err = std::make_error_code(std::errc::permission_denied);
     return {};
   }
 
-  tmppath = std::move(tmp);
+  return fstream;
+}
+
+auto open_write(const std::filesystem::path &file, std::filesystem::path &tmp,
+                std::error_code &err) -> std::shared_ptr<std::fstream>
+{
+  err.clear();
+  err = touch(file);
+  if (err)
+    return {};
+
+  tmp = tmpname();
+  auto fstream = std::make_shared<std::fstream>(
+      tmp, std::ios::out | std::ios::trunc | std::ios::binary);
+  if (!fstream->is_open())
+  {
+    err = std::make_error_code(std::errc::permission_denied);
+    return {};
+  }
+
   return fstream;
 }
 

@@ -65,17 +65,24 @@ auto tmpname() -> std::filesystem::path;
 auto touch(const std::filesystem::path &file) -> std::error_code;
 
 /**
- * @brief Copies a source file into a new temporary file and opens it.
- * @param copy_from Path to the source file to copy.
- * @param mode Open mode flags for the resulting file stream.
- * @param[out] tmppath Receives the path of the created temporary file.
- * @param[out] err Error code indicating success or failure of the operation.
- * @return Shared pointer to an opened fstream of the temporary file, or nullptr
- * on error.
+ * @brief Opens a file for reading.
+ * @param file The file to open.
+ * @param[out] err An error code that is cleared on success and set on error.
+ * @returns A shared pointer to an open file stream.
  */
-auto tmpfile_from(const std::filesystem::path &copy_from,
-                  const std::ios::openmode &mode,
-                  std::filesystem::path &tmppath,
-                  std::error_code &err) -> std::shared_ptr<std::fstream>;
+auto open_read(const std::filesystem::path &file,
+               std::error_code &err) -> std::shared_ptr<std::fstream>;
+
+/**
+ * @brief Opens a file for writing.
+ * @details Writing a file to disk involves writing data to a
+ * temporary file then renaming it to the target destination.
+ * @param file The file to open.
+ * @param[in,out] tmp The path of the temporary file.
+ * @param[out] err An error code that is cleared on success and set on error.
+ * @returns A shared pointer to an open file stream.
+ */
+auto open_write(const std::filesystem::path &file, std::filesystem::path &tmp,
+                std::error_code &err) -> std::shared_ptr<std::fstream>;
 } // namespace tftp::filesystem
 #endif // TFTP_FILESYSTEM_HPP

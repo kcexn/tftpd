@@ -76,81 +76,6 @@ TEST_F(TestFileSystem, NextIncrementsCounter)
   EXPECT_EQ(count().load(), initial_count + 3);
 }
 
-TEST_F(TestFileSystem, MakeTmpCopiesFile)
-{
-  using namespace std::filesystem;
-
-  std::error_code err;
-  const auto from_path = tmpname();
-  remove(from_path);
-
-  std::ofstream(from_path) << "test content";
-
-  auto to_path = std::filesystem::path();
-
-  tmpfile_from(from_path, std::ios::in | std::ios::binary, to_path, err);
-
-  EXPECT_FALSE(err);
-  EXPECT_TRUE(std::filesystem::exists(to_path));
-  EXPECT_TRUE(std::filesystem::equivalent(from_path, to_path, err) ||
-              std::filesystem::file_size(from_path) ==
-                  std::filesystem::file_size(to_path));
-
-  remove(from_path);
-  remove(to_path);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(1));
-}
-
-TEST_F(TestFileSystem, MakeTmpReturnsEmptyPathOnError)
-{
-  using namespace std::filesystem;
-
-  std::error_code err;
-  const auto nonexistent_path = tmpname();
-  auto tmp = std::filesystem::path();
-
-  const auto fstream =
-      tmpfile_from(nonexistent_path, std::ios::in | std::ios::binary, tmp, err);
-
-  EXPECT_TRUE(err);
-  EXPECT_TRUE(tmp.empty());
-
-  remove(nonexistent_path);
-  remove(tmp);
-}
-
-TEST_F(TestFileSystem, MakeTmpHandlesOpenFailureAfterCopy)
-{
-  using namespace std::filesystem;
-
-  std::error_code err;
-
-  const auto from_path = tmpname();
-  remove(from_path);
-
-  std::ofstream(from_path) << "test content";
-
-  permissions(from_path, std::filesystem::perms::owner_read,
-              std::filesystem::perm_options::replace);
-
-  auto to_path = std::filesystem::path();
-
-  const auto fstream =
-      tmpfile_from(from_path, std::ios::out | std::ios::binary, to_path, err);
-
-  EXPECT_FALSE(fstream);
-  EXPECT_EQ(err, std::errc::permission_denied);
-
-  EXPECT_TRUE(to_path.empty() || !std::filesystem::exists(to_path));
-
-  std::filesystem::permissions(from_path, std::filesystem::perms::owner_all,
-                               std::filesystem::perm_options::replace);
-
-  remove(from_path);
-  remove(to_path);
-}
-
 TEST_F(TestFileSystem, TouchCreatesNewFile)
 {
   const auto path = tmpname();
@@ -193,5 +118,80 @@ TEST_F(TestFileSystem, MailDirectoryReturnsValidPath)
 
   EXPECT_FALSE(path.empty());
   EXPECT_TRUE(path.is_absolute());
+}
+
+TEST_F(TestFileSystem, OpenReadOpensFileForReading)
+{
+  const auto path = tmpname();
+  std::ofstream(path) << "some data";
+
+  std::error_code err;
+  auto fstream = open_read(path, err);
+
+  EXPECT_TRUE(fstream->is_open());
+  EXPECT_FALSE(err);
+
+  std::filesystem::remove(path);
+}
+
+TEST_F(TestFileSystem, OpenReadReturnsErrorOnNonExistentFile)
+{
+  const auto path = tmpname();
+  std::filesystem::remove(path);
+
+  std::error_code err;
+  auto fstream = open_read(path, err);
+
+  EXPECT_FALSE(fstream);
+  EXPECT_TRUE(err);
+}
+
+TEST_F(TestFileSystem, OpenWriteOpensTempFileForWriting)
+{
+  const auto path = tmpname();
+  std::filesystem::path tmp;
+  std::error_code err;
+  auto fstream = open_write(path, tmp, err);
+
+  EXPECT_TRUE(fstream->is_open());
+  EXPECT_FALSE(err);
+  EXPECT_TRUE(std::filesystem::exists(tmp));
+
+  std::filesystem::remove(path);
+  std::filesystem::remove(tmp);
+}
+
+TEST_F(TestFileSystem, OpenWriteReturnsErrorOnUncreatableDestFile)
+{
+  const auto path = std::filesystem::path("/non_existent_dir/file");
+  std::filesystem::path tmp;
+  std::error_code err;
+  auto fstream = open_write(path, tmp, err);
+
+  EXPECT_FALSE(fstream);
+  EXPECT_TRUE(err);
+}
+
+TEST_F(TestFileSystem, OpenWriteReturnsErrorOnUncreatableTempFile)
+{
+  std::error_code err;
+  const auto path = tmpname();
+  touch(path);
+  std::filesystem::path tmp;
+
+  count()--;
+
+  std::filesystem::permissions(path, std::filesystem::perms::owner_read |
+                                         std::filesystem::perms::group_read |
+                                         std::filesystem::perms::others_read);
+
+  auto target = std::filesystem::path("/tmp/test");
+  auto fstream = open_write(target, tmp, err);
+
+  EXPECT_FALSE(fstream);
+  EXPECT_EQ(err, std::errc::permission_denied);
+
+  std::filesystem::remove(path);
+  std::filesystem::remove(target);
 }
 // NOLINTEND
